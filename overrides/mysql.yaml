@@ -1,0 +1,6 @@
+auth:
+  rootPassword: uptimelabs
+  createDatabase: true
+  database: uptimelabs
+  username: uptimelabs
+  password: uptimelabs

@@ -1,0 +1,39 @@
+ingress:
+  main:
+    enabled: true
+    hosts:
+      - host: node-red.internal
+        paths:
+          - path: /
+            pathType: Prefix
+            service:
+              name: node-red
+              port: 1880
+
+service:
+  main:
+    annotations:
+      prometheus.io/scrape: "true"
+      prometheus.io/port: "1880"
+
+persistence:
+  data:
+    enabled: true
+    mountPath: /data
+    size: 10Gi
+    accessMode: ReadWriteOnce
+    retain: true
+
+env:
+  - name: TZ
+    value: "Europe/London"
+  - name: NODE_RED_ENABLE_PROJECTS
+    value: true
+  - name: MQTTUSER
+    value: "user"
+  - name: MQTTPASSWORD
+    value: "password"
+  - name: KEYCLOAK_USER
+    value: "user"
+  - name: KEYCLOAK_PASSWORD
+    value: "password"

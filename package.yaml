@@ -1,0 +1,16 @@
+- name: superset
+  repo: superset/superset
+  namespace: superset
+  override: superset.yaml
+- name: mosquitto
+  repo: k8shome/mosquitto
+  namespace: uptimelabs
+  override: mqtt.yaml
+- name: node-red
+  repo: k8shome/node-red
+  namespace: uptimelabs
+  override: nodered.yaml
+- name: mysql
+  repo: bitnami/mysql
+  namespace: mysql
+  override: mysql.yaml

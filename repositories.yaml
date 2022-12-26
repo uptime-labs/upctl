@@ -1,0 +1,6 @@
+- name: superset
+  url: https://apache.github.io/superset
+- name: bitnami
+  url: https://charts.bitnami.com/bitnami
+- name: node-red
+  url: https://k8s-at-home.com/charts/

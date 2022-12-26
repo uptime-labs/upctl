@@ -1,0 +1,75 @@
+serviceAccount:
+  create: true
+
+ingress:
+  enabled: true
+  ingressClassName: nginx
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-connect-timeout: "300"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "300"
+  path: /
+  pathType: ImplementationSpecific
+  hosts:
+    - superset.internal
+
+postgresql:
+  postgresqlPassword: "admin"
+
+configOverrides:
+  secret: |
+    SECRET_KEY = '${encryption_key}'
+  enable_oauth: |
+    # This will make sure the redirect_uri is properly computed, even with SSL offloading
+    ENABLE_PROXY_FIX = True
+
+    from flask_appbuilder.security.manager import AUTH_OAUTH
+    AUTH_TYPE = AUTH_OAUTH
+    OAUTH_PROVIDERS = [
+        {
+            "name": "keycloak",
+            "icon": "fa-key",
+            "token_key": "access_token",
+            "remote_app": {
+                "client_id": os.getenv("KEYCLOAK_CLIENT_ID"),
+                "client_secret": os.getenv("KEYCLOAK_CLIENT_SECRET"),
+                "api_base_url": os.getenv("KEYCLOAK_KEYCLOAK_URL"),
+                "client_kwargs": {"scope": "email profile"},
+                "request_token_url": None,
+                "access_token_url": os.getenv("KEYCLOAK_KEYCLOAK_URL") + "openid-connect/token",
+                "authorize_url": os.getenv("KEYCLOAK_KEYCLOAK_URL") + "openid-connect/auth"
+            },
+        }
+    ]
+
+    # Map Authlib roles to superset roles
+    AUTH_ROLE_ADMIN = 'admins'
+    #AUTH_ROLE_PUBLIC = 'public'
+
+    # if we should replace ALL the user's roles each login, or only on registration
+    AUTH_ROLES_SYNC_AT_LOGIN = True
+    # Will allow user self registration, allowing to create Flask users from Authorized User
+    AUTH_USER_REGISTRATION = True
+
+    # The default user self registration role
+    AUTH_USER_REGISTRATION_ROLE = "Public"
+
+extraEnv:
+  SMTP_HOST: smtp.uptimelabs.io
+  SMTP_USER: noreply@uptimelabs.io
+  SMTP_PORT: "25"
+  SMTP_MAIL_FROM: noreply@uptimelabs.io
+
+extraSecretEnv:
+  KEYCLOAK_CLIENT_ID: "superset"
+  KEYCLOAK_CLIENT_SECRET: "b4sR4NTsuk2Nnd7tS0nT8SrnrMwwwwlv"
+  KEYCLOAK_KEYCLOAK_URL: https://id.dev.uptimelabs.io/auth/realms/tenants/protocol/
+
+bootstrapScript: |
+  #!/bin/bash
+  rm -rf /var/lib/apt/lists/* && \
+  pip install \
+    psycopg2-binary==2.9.1 \
+    Authlib==1.2.0 \
+    redis==3.5.3 && \
+  if [ ! -f ~/bootstrap ]; then echo "Running Superset with uid {{ .Values.runAsUser }}" > ~/bootstrap; fi
