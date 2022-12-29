@@ -4,3 +4,6 @@ auth:
   database: uptimelabs
   username: uptimelabs
   password: uptimelabs
+
+service:
+  type: LoadBalancer

@@ -1,7 +1,3 @@
-- name: superset
-  repo: superset/superset
-  namespace: superset
-  override: superset.yaml
 - name: mosquitto
   repo: k8shome/mosquitto
   namespace: uptimelabs
@@ -14,3 +10,11 @@
   repo: bitnami/mysql
   namespace: mysql
   override: mysql.yaml
+- name: phpmyadmin
+  repo: bitnami/phpmyadmin
+  namespace: phpmyadmin
+  override: mysql.yaml
+#- name: superset
+#  repo: superset/superset
+#  namespace: superset
+#  override: superset.yaml

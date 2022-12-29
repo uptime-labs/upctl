@@ -1,18 +1,6 @@
 serviceAccount:
   create: true
 
-ingress:
-  enabled: true
-  ingressClassName: nginx
-  annotations:
-    nginx.ingress.kubernetes.io/proxy-connect-timeout: "300"
-    nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
-    nginx.ingress.kubernetes.io/proxy-send-timeout: "300"
-  path: /
-  pathType: ImplementationSpecific
-  hosts:
-    - superset.internal
-
 postgresql:
   postgresqlPassword: "admin"
 
@@ -43,16 +31,29 @@ configOverrides:
     ]
 
     # Map Authlib roles to superset roles
-    AUTH_ROLE_ADMIN = 'admins'
-    #AUTH_ROLE_PUBLIC = 'public'
+    AUTH_ROLE_ADMIN = 'Admin'
+    AUTH_ROLE_PUBLIC = 'Public'
 
     # if we should replace ALL the user's roles each login, or only on registration
     AUTH_ROLES_SYNC_AT_LOGIN = True
+
     # Will allow user self registration, allowing to create Flask users from Authorized User
     AUTH_USER_REGISTRATION = True
 
     # The default user self registration role
-    AUTH_USER_REGISTRATION_ROLE = "Public"
+    AUTH_USER_REGISTRATION_ROLE = "Admin"
+
+extraConfigs:
+  import_datasources.yaml: |
+    databases:
+    - database_name: uptimelabs
+      sqlalchemy_uri: mysql+mysqldb://root:xxxxxx@bks-dev-uptimelabs.cluster-ro-cpmlx8kozhvl.eu-west-1.rds.amazonaws.com:3306/uptimelabs
+      expose_in_sqllab: true
+      allow_run_async: false
+      allow_ctas: false 
+      allow_cvas: false
+      allow_csv_upload: false
+      extra: "{allows_virtual_table_explore: true}"
 
 extraEnv:
   SMTP_HOST: smtp.uptimelabs.io
@@ -62,7 +63,7 @@ extraEnv:
 
 extraSecretEnv:
   KEYCLOAK_CLIENT_ID: "superset"
-  KEYCLOAK_CLIENT_SECRET: "b4sR4NTsuk2Nnd7tS0nT8SrnrMwwwwlv"
+  KEYCLOAK_CLIENT_SECRET: "xxxx"
   KEYCLOAK_KEYCLOAK_URL: https://id.dev.uptimelabs.io/auth/realms/tenants/protocol/
 
 bootstrapScript: |

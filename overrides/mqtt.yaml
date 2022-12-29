@@ -11,6 +11,7 @@ persistence:
 
 service:
   main:
+    type: LoadBalancer
     annotations:
       prometheus.io/port: "9234"
       prometheus.io/scrape: "true"
@@ -24,21 +25,6 @@ service:
       metrics:
         enabled: true
         port: 9234
-
-ingress:
-  main:
-    enabled: true
-    annotations:
-      "nginx.ingress.kubernetes.io/proxy-read-timeout": "3600"
-      "nginx.ingress.kubernetes.io/proxy-send-timeout": "3600"
-    hosts:
-      - host: mqtt.internal
-        paths:
-          - path: /
-            pathType: Prefix
-            service:
-              name: mosquitto
-              port: 8000
 
 auth:
   enabled: true

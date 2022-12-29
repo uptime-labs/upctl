@@ -1,0 +1,5 @@
+db:
+  host: mysql.mysql.svc.cluster.local
+
+service:
+  type: LoadBalancer

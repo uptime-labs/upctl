@@ -2,7 +2,7 @@ SHELL = /bin/bash
 
 export PROJECT_NAMESPACE=uptimelabs
 export CLUSTER_NAME=riddler
-export KIND_CONFIG_FILE_NAME=kind.config.yaml
+export KIND_CONFIG_FILE_NAME=config/kind.config.yaml
 export OSL=$(shell uname -s | tr '[:upper:]' '[:lower:]')
 
 ifeq ("x86_64", $(uname -m))
@@ -56,12 +56,15 @@ helm-setup: ## setup help repositories
 	@echo -e "\n"; \
 
 ##@ Install cluster components
-install-core-components: helm-setup ## install core cluster components, nginx ingress, secret manager etc.
-	kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/main/deploy/static/provider/kind/deploy.yaml  --context kind-${CLUSTER_NAME}
-	kubectl wait --namespace ingress-nginx --for=condition=ready pod --selector=app.kubernetes.io/component=controller \
-  --timeout=100s --context kind-${CLUSTER_NAME}
+install-core-components: ## install core cluster components, metallb, secret manager etc.
+	@echo -e "Installing metallb load balancer...⏳"
+	@kubectl apply -f https://raw.githubusercontent.com/metallb/metallb/v0.13.7/config/manifests/metallb-native.yaml --context kind-${CLUSTER_NAME}
     # install sealed secrets
 # helm install sealed-secrets -n kube-system --set-string fullnameOverride=sealed-secrets-controller sealed-secrets/sealed-secrets  --kube-context kind-${CLUSTER_NAME}
+
+##@ Configure network
+configure-network: ## Configures the metallb network
+	@kubectl apply -f config/metallb-config.yaml -n metallb-system
 
 ##@ Install packages
 install-packages: helm-setup ## Install and configure development dependencies defined in package.yaml
@@ -92,6 +95,13 @@ remove-packages: ## Remove all installed packages
 		$${command}; \
 		echo -e "\n"; \
 	done
+
+import-data:
+	@mysql_pwd=$$(kubectl get secret --namespace mysql mysql -o jsonpath="{.data.mysql-root-password}" | base64 -d)
+	@echo -e "Deploy mysql-client pod...⏳"
+	@kubectl run mysql-client --rm --tty -i --restart='Never' \
+	--image docker.io/bitnami/mysql:8.0.31-debian-11-r20 \
+	--namespace mysql --env MYSQL_ROOT_PASSWORD=$$mysql_pwd --command -- bash
 
 .PHONY: help
 help:
