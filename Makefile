@@ -5,6 +5,9 @@ export CLUSTER_NAME=riddler
 export KIND_CONFIG_FILE_NAME=config/kind.config.yaml
 export OSL=$(shell uname -s | tr '[:upper:]' '[:lower:]')
 
+export MYSQL_PASSWORD=$(shell kubectl get secret --namespace mysql mysql -o jsonpath="{.data.mysql-root-password}" --context kind-${CLUSTER_NAME} | base64 -d)
+export MYSQL_HOST=$(shell kubectl get svc -n mysql mysql -o=jsonpath='{.status.loadBalancer.ingress[0].ip}' --context kind-${CLUSTER_NAME})
+
 ifeq ("x86_64", $(uname -m))
 	export ARCH="amd64"
 else
@@ -64,7 +67,11 @@ install-core-components: ## install core cluster components, metallb, secret man
 
 ##@ Configure network
 configure-network: ## Configures the metallb network
-	@kubectl apply -f config/metallb-config.yaml -n metallb-system
+	@kubectl apply -f config/metallb-config.yaml -n metallb-system --context kind-${CLUSTER_NAME}
+
+##@ Print services:
+list-services: ## list all the services and IPs
+	@kubectl get svc -A -o yaml  --context kind-${CLUSTER_NAME} | yq -r '.items[] | select(.spec.type=="LoadBalancer") | .metadata.name + " -> " + .status.loadBalancer.ingress[0].ip + ":" + .spec.ports.[].nodePort'
 
 ##@ Install packages
 install-packages: helm-setup ## Install and configure development dependencies defined in package.yaml
@@ -96,12 +103,18 @@ remove-packages: ## Remove all installed packages
 		echo -e "\n"; \
 	done
 
-import-data:
-	@mysql_pwd=$$(kubectl get secret --namespace mysql mysql -o jsonpath="{.data.mysql-root-password}" | base64 -d)
-	@echo -e "Deploy mysql-client pod...⏳"
-	@kubectl run mysql-client --rm --tty -i --restart='Never' \
-	--image docker.io/bitnami/mysql:8.0.31-debian-11-r20 \
-	--namespace mysql --env MYSQL_ROOT_PASSWORD=$$mysql_pwd --command -- bash
+##@ Import data
+import-data: ## import mysql data from the S3
+ifeq (,$(wildcard uptimelabs.sql))
+	@echo -e "Logging into to AWS account...⏳\n"
+	@tsh app login awsconsole-prod --aws-role TeleportReadOnly
+	@echo -e "Coping SQL backup from AWS S3...⏳"
+	@tsh aws s3 cp s3://428265895497-prod-wordpress-backups/uptimelabs/uptimelabs.sql .
+else
+	$(warn uptimelabs.sql exist, skipping download!)
+endif
+	@echo -e "Importing data to local mysql cluster...⏳"
+	@mysql -u root -p${MYSQL_PASSWORD} -h ${MYSQL_HOST} uptimelabs < uptimelabs.sql
 
 .PHONY: help
 help:

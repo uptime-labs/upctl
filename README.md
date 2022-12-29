@@ -39,7 +39,7 @@ $ make init
 
 This will create a local Kubernetes cluster using Docker containers as the nodes. You can then use kubectl, the Kubernetes command-line interface, to deploy and manage applications on the cluster.
 
-## Network - Setting up Load Balancer
+## Network - Setting up Load Balancers
 
 #### Setup address pool used by loadbalancers
 
@@ -68,4 +68,21 @@ kind: L2Advertisement
 metadata:
   name: empty
   namespace: metallb-system
+```
+
+## Install packages
+
+Install packages install and configures the helm packages defined in the `package.yaml` file.
+
+```bash
+$ make install-packages
+```
+
+Values for each package can be modified using the overrides config files.
+
+```yaml
+- name: mosquitto # package name
+  repo: k8shome/mosquitto # hem repository name / chart name
+  namespace: uptimelabs # namespace to install the package (this will get automatically created)
+  override: mqtt.yaml # helm value file for the configuration override
 ```
