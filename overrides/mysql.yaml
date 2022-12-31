@@ -8,3 +8,9 @@ auth:
 primary:
   service:
     type: LoadBalancer
+
+initdbScripts:
+  createdb.sql: |-
+    CREATE DATABASE IF NOT EXISTS keycloak;
+    GRANT ALL PRIVILEGES ON *.* TO 'uptimelabs'@'%';
+    FLUSH PRIVILEGES;

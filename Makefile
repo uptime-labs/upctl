@@ -4,7 +4,7 @@ export PROJECT_NAMESPACE=uptimelabs
 export CLUSTER_NAME=riddler
 export KIND_CONFIG_FILE_NAME=config/kind.config.yaml
 export OSL=$(shell uname -s | tr '[:upper:]' '[:lower:]')
-
+#export KIND_EXPERIMENTAL_DOCKER_NETWORK=bm-kind
 export MYSQL_PASSWORD=$(shell kubectl get secret --namespace mysql mysql -o jsonpath="{.data.mysql-root-password}" --context kind-${CLUSTER_NAME} | base64 -d)
 export MYSQL_HOST=$(shell kubectl get svc -n mysql mysql -o=jsonpath='{.status.loadBalancer.ingress[0].ip}' --context kind-${CLUSTER_NAME})
 
@@ -62,16 +62,18 @@ helm-setup: ## setup help repositories
 install-core-components: ## install core cluster components, metallb, secret manager etc.
 	@echo -e "Installing metallb load balancer...⏳"
 	@kubectl apply -f https://raw.githubusercontent.com/metallb/metallb/v0.13.7/config/manifests/metallb-native.yaml --context kind-${CLUSTER_NAME}
+	@kubectl wait pods -n metallb-system -l app=metallb --for condition=Ready --timeout=90s
+	@kubectl apply -f config/metallb-config.yaml -n metallb-system --context kind-${CLUSTER_NAME}
     # install sealed secrets
 # helm install sealed-secrets -n kube-system --set-string fullnameOverride=sealed-secrets-controller sealed-secrets/sealed-secrets  --kube-context kind-${CLUSTER_NAME}
 
 ##@ Configure network
 configure-network: ## Configures the metallb network
-	@kubectl apply -f config/metallb-config.yaml -n metallb-system --context kind-${CLUSTER_NAME}
+	echo "Experimental"
 
 ##@ Print services:
 list-services: ## list all the services and IPs
-	@kubectl get svc -A -o yaml  --context kind-${CLUSTER_NAME} | yq -r '.items[] | select(.spec.type=="LoadBalancer") | .metadata.name + " -> " + .status.loadBalancer.ingress[0].ip + ":" + .spec.ports.[].nodePort'
+	@kubectl get svc -A -o yaml  --context kind-${CLUSTER_NAME} | yq -r '.items[] | select(.spec.type=="LoadBalancer") | .metadata.name + " -> " + .status.loadBalancer.ingress[0].ip + ":" + .spec.ports.[].port'
 
 ##@ Install packages
 install-packages: helm-setup ## Install and configure development dependencies defined in package.yaml
@@ -84,7 +86,7 @@ install-packages: helm-setup ## Install and configure development dependencies d
 		if [ "$${override}" != "null" ]; then \
 			export command="$${command} -f overrides/$${override}"; \
 		fi; \
-		command="$${command} --install $${name} $${repo} -n $${namespace} --create-namespace --kube-context kind-$${CLUSTER_NAME}"; \
+		command="$${command} --install $${name} $${repo} -n $${namespace} --wait --create-namespace --kube-context kind-$${CLUSTER_NAME}"; \
 		echo -e "Deploying package $${namespace}/$${name}....⏳\n"; \
 		$${command}; \
 		echo -e "\n"; \

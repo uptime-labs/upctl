@@ -1,0 +1,43 @@
+auth:
+  adminPassword: uptimelabs
+
+postgresql:
+  enabled: false
+
+service:
+    http:
+      enabled: true
+
+#checkov:skip=CKV_SECRET_6:"Base64 High Entropy String"
+extraEnv: |
+  - name: KUBERNETES_NAMESPACE
+    valueFrom:
+      fieldRef:
+        apiVersion: v1
+        fieldPath: metadata.namespace
+  - name: CACHE_OWNERS_COUNT
+    value: "2"
+  - name: CACHE_OWNERS_AUTH_SESSIONS_COUNT
+    value: "2"
+  - name: LDAPTLS_REQCERT
+    value: "never"
+  - name: KEYCLOAK_STATISTICS
+    value: all
+  - name: PROXY_ADDRESS_FORWARDING
+    value: "true"
+  - name: JGROUPS_DISCOVERY_PROTOCOL
+    value: "dns.DNS_PING"
+  - name: JGROUPS_DISCOVERY_PROPERTIES
+    value: "dns_query=keycloak-headless"
+  - name: DB_VENDOR
+    value: "mysql"
+  - name: DB_ADDR
+    value: "mysql.mysql.svc.cluster.local"
+  - name: DB_PORT
+    value: "3306"
+  - name: DB_DATABASE
+    value: "keycloak"
+  - name: DB_USER
+    value: "uptimelabs"
+  - name: DB_PASSWORD
+    value: "uptimelabs"

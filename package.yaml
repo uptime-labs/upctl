@@ -14,6 +14,10 @@
   repo: bitnami/phpmyadmin
   namespace: phpmyadmin
   override: mysql.yaml
+- name: keycloak
+  repo: codecentric/keycloak
+  namespace: keycloak
+  override: keycloak.yaml
 #- name: superset
 #  repo: superset/superset
 #  namespace: superset
