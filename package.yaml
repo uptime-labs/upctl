@@ -13,7 +13,7 @@
 - name: phpmyadmin
   repo: bitnami/phpmyadmin
   namespace: phpmyadmin
-  override: mysql.yaml
+  override: phpmyadmin.yaml
 - name: keycloak
   repo: codecentric/keycloak
   namespace: keycloak
