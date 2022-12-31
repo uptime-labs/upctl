@@ -5,49 +5,47 @@ export CLUSTER_NAME=riddler
 export KIND_CONFIG_FILE_NAME=config/kind.config.yaml
 export OSL=$(shell uname -s | tr '[:upper:]' '[:lower:]')
 #export KIND_EXPERIMENTAL_DOCKER_NETWORK=bm-kind
-export MYSQL_PASSWORD=$(shell kubectl get secret --namespace mysql mysql -o jsonpath="{.data.mysql-root-password}" --context kind-${CLUSTER_NAME} | base64 -d)
-export MYSQL_HOST=$(shell kubectl get svc -n mysql mysql -o=jsonpath='{.status.loadBalancer.ingress[0].ip}' --context kind-${CLUSTER_NAME})
+export MYSQL_PASSWORD=$(shell kubectl get secret --namespace mysql mysql -o jsonpath="{.data.mysql-root-password}" --context kind-${CLUSTER_NAME} 2>/dev/null | base64 -d )
+export MYSQL_HOST=$(shell kubectl get svc -n mysql mysql -o=jsonpath='{.status.loadBalancer.ingress[0].ip}' --context kind-${CLUSTER_NAME} 2>/dev/null)
 
+export ARCH="arm64"
 ifeq ("x86_64", $(uname -m))
 	export ARCH="amd64"
-else
-	export ARCH="arm64"
 endif
 
 .DEFAULT_GOAL:=help
 
-##@ Init
-init: create-cluster display-cluster install-core-components ## initialize a kind cluster and install core components
+init: create display configure ## Initialize a kind cluster and install core components.
 
-##@ Create cluster
-create-cluster: ## creates a kind cluster
+##@ Cluster operations
+create: ## Creates a kind cluster.
 # check for existing cluster
-ifneq (,$(findstring $(CLUSTER_NAME),$(shell kind get clusters)))
+ifneq (,$(findstring $(CLUSTER_NAME),$(shell kind get clusters 2>/dev/null)))
 	@echo -e "Node(s) already exist for a cluster with the name \"riddler\"\n"
 else
 	kind create cluster --name ${CLUSTER_NAME} --config=${KIND_CONFIG_FILE_NAME}
 endif
 
-##@ Display cluster info
-display-cluster: ## display cluster information
+display: ## Display cluster information.
 	kubectl cluster-info --context kind-${CLUSTER_NAME}
 
-##@ Delete cluster
-delete-cluster: ## deletes the kind cluster, use docker volume purge to remove any volumes if required
+delete: ## Deletes the kind cluster, use docker volume purge to remove any volumes if required.
 	kind delete cluster --name ${CLUSTER_NAME}
 
-##@ Install dependecies
-install-deps: ## install kind and yq dependecies
-	curl -Lo ./kind https://github.com/kubernetes-sigs/kind/releases/download/v0.17.0/kind-${OSL}-amd64
-	chmod +x ./kind
-	sudo mv ./kind /usr/local/bin/kind
+configure: ## Install core cluster components, metallb, secret manager etc.
+	@echo -e "Installing MetalLB load balancer...⏳\n"
+	@kubectl apply -f https://raw.githubusercontent.com/metallb/metallb/v0.13.7/config/manifests/metallb-native.yaml --context kind-${CLUSTER_NAME}
+	@echo -e "\nWaiting for the deployment ready...⏳"
+	@kubectl wait pods -n metallb-system -l app=metallb --for condition=Ready --timeout=90s
+	@make -s network-conf
+    # install sealed secrets
+# helm install sealed-secrets -n kube-system --set-string fullnameOverride=sealed-secrets-controller sealed-secrets/sealed-secrets  --kube-context kind-${CLUSTER_NAME}
 
-	curl -Lo ./yq https://github.com/mikefarah/yq/releases/latest/download/yq_${OSL}_amd64
-	chmod +x ./yq
-	sudo mv ./yq /usr/local/bin/yq
+services: ## List all the services and IPs.
+	@kubectl get svc -A -o yaml  --context kind-${CLUSTER_NAME} | yq -r '.items[] | select(.spec.type=="LoadBalancer") | .metadata.name + " -> " + .status.loadBalancer.ingress[0].ip + ":" + .spec.ports.[].port'
 
-##@ Helm setup
-helm-setup: ## setup help repositories
+##@ Package (helm) operations
+conf-helm: ## Setup help repositories.
 	@echo -e "Configuring repositories...\n"
 	@for k in `yq eval '. | keys | .[]' repositories.yaml`; do \
 		name=`yq eval ".[$$k].name" repositories.yaml`; \
@@ -58,25 +56,7 @@ helm-setup: ## setup help repositories
 	done
 	@echo -e "\n"; \
 
-##@ Install cluster components
-install-core-components: ## install core cluster components, metallb, secret manager etc.
-	@echo -e "Installing metallb load balancer...⏳"
-	@kubectl apply -f https://raw.githubusercontent.com/metallb/metallb/v0.13.7/config/manifests/metallb-native.yaml --context kind-${CLUSTER_NAME}
-	@kubectl wait pods -n metallb-system -l app=metallb --for condition=Ready --timeout=90s
-	@kubectl apply -f config/metallb-config.yaml -n metallb-system --context kind-${CLUSTER_NAME}
-    # install sealed secrets
-# helm install sealed-secrets -n kube-system --set-string fullnameOverride=sealed-secrets-controller sealed-secrets/sealed-secrets  --kube-context kind-${CLUSTER_NAME}
-
-##@ Configure network
-configure-network: ## Configures the metallb network
-	echo "Experimental"
-
-##@ Print services:
-list-services: ## list all the services and IPs
-	@kubectl get svc -A -o yaml  --context kind-${CLUSTER_NAME} | yq -r '.items[] | select(.spec.type=="LoadBalancer") | .metadata.name + " -> " + .status.loadBalancer.ingress[0].ip + ":" + .spec.ports.[].port'
-
-##@ Install packages
-install-packages: helm-setup ## Install and configure development dependencies defined in package.yaml
+install-pkgs: conf-helm ## Install and configure development dependencies defined in package.yaml.
 	@for k in `yq eval '. | keys | .[]' package.yaml`; do \
 		name=`yq eval ".[$$k].name" package.yaml`; \
 		repo=`yq eval ".[$$k].repo" package.yaml`; \
@@ -92,8 +72,7 @@ install-packages: helm-setup ## Install and configure development dependencies d
 		echo -e "\n"; \
 	done
 
-##@ Remove packages
-remove-packages: ## Remove all installed packages
+remove-pkgs: ## Remove all installed packages.
 	@for k in `yq eval '. | keys | .[]' package.yaml`; do \
 		name=`yq eval ".[$$k].name" package.yaml`; \
 		repo=`yq eval ".[$$k].repo" package.yaml`; \
@@ -105,8 +84,18 @@ remove-packages: ## Remove all installed packages
 		echo -e "\n"; \
 	done
 
-##@ Import data
-import-data: ## import mysql data from the S3
+##@ System dependencies and tools
+install-tools: ## Install kind and yq tools on the local machine.
+	curl -Lo ./kind https://github.com/kubernetes-sigs/kind/releases/download/v0.17.0/kind-${OSL}-amd64
+	chmod +x ./kind
+	sudo mv ./kind /usr/local/bin/kind
+
+	curl -Lo ./yq https://github.com/mikefarah/yq/releases/latest/download/yq_${OSL}_amd64
+	chmod +x ./yq
+	sudo mv ./yq /usr/local/bin/yq
+
+##@ Data operations
+import-db: ## Import mysql data from the S3.
 ifeq (,$(wildcard uptimelabs.sql))
 	@echo -e "Logging into to AWS account...⏳\n"
 	@tsh app login awsconsole-prod --aws-role TeleportReadOnly
@@ -117,6 +106,11 @@ else
 endif
 	@echo -e "Importing data to local mysql cluster...⏳"
 	@mysql -u root -p${MYSQL_PASSWORD} -h ${MYSQL_HOST} uptimelabs < uptimelabs.sql
+
+##@ Network operations
+network-conf: ## Configures the MetalLB network.
+	@echo -e "Configure MetalLB network...⏳"
+	@kubectl apply -f config/metallb-config.yaml -n metallb-system --context kind-${CLUSTER_NAME}
 
 .PHONY: help
 help:
