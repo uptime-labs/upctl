@@ -31,4 +31,3 @@ nodes:
         - "0.0.0.0"
 - role: worker
 - role: worker
-- role: worker

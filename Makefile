@@ -1,5 +1,7 @@
 SHELL = /bin/bash
 
+export RED=\033[0;31m
+export NC=\033[0m # No Color
 export PROJECT_NAMESPACE=uptimelabs
 export CLUSTER_NAME=riddler
 export KIND_CONFIG_FILE_NAME=config/kind.config.yaml
@@ -27,16 +29,22 @@ else
 endif
 
 display: ## Display cluster information.
-	kubectl cluster-info --context kind-${CLUSTER_NAME}
+	@kubectl cluster-info --context kind-${CLUSTER_NAME}
 
 delete: ## Deletes the kind cluster, use docker volume purge to remove any volumes if required.
-	kind delete cluster --name ${CLUSTER_NAME}
+	@echo -e "${RED}Are you sure you want to delete cluster, ${CLUSTER_NAME}?${NC}" 
+	@read -n 1 -r; \
+	if [[ $$REPLY =~ ^[Yy] ]]; \
+	then \
+		kind delete cluster --name ${CLUSTER_NAME}; \
+	fi
 
 configure: ## Install core cluster components, metallb, secret manager etc.
 	@echo -e "Installing MetalLB load balancer...⏳\n"
 	@kubectl apply -f https://raw.githubusercontent.com/metallb/metallb/v0.13.7/config/manifests/metallb-native.yaml --context kind-${CLUSTER_NAME}
 	@echo -e "\nWaiting for the deployment ready...⏳"
 	@kubectl wait pods -n metallb-system -l app=metallb --for condition=Ready --timeout=90s
+	@echo -e "\n"
 	@make -s network-conf
     # install sealed secrets
 # helm install sealed-secrets -n kube-system --set-string fullnameOverride=sealed-secrets-controller sealed-secrets/sealed-secrets  --kube-context kind-${CLUSTER_NAME}
@@ -108,8 +116,8 @@ endif
 	@mysql -u root -p${MYSQL_PASSWORD} -h ${MYSQL_HOST} uptimelabs < uptimelabs.sql
 
 ##@ Network operations
-network-conf: ## Configures the MetalLB network.
-	@echo -e "Configure MetalLB network...⏳"
+network-conf: ## Configuring the MetalLB network.
+	@echo -e "Configuring MetalLB network...⏳"
 	@kubectl apply -f config/metallb-config.yaml -n metallb-system --context kind-${CLUSTER_NAME}
 
 .PHONY: help
