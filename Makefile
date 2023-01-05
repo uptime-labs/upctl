@@ -3,12 +3,17 @@ SHELL = /bin/bash
 export RED=\033[0;31m
 export NC=\033[0m # No Color
 export PROJECT_NAMESPACE=uptimelabs
-export CLUSTER_NAME=riddler
+export CONTEXT_NAME=docker-desktop
 export KIND_CONFIG_FILE_NAME=config/kind.config.yaml
 export OSL=$(shell uname -s | tr '[:upper:]' '[:lower:]')
 #export KIND_EXPERIMENTAL_DOCKER_NETWORK=bm-kind
-export MYSQL_PASSWORD=$(shell kubectl get secret --namespace mysql mysql -o jsonpath="{.data.mysql-root-password}" --context kind-${CLUSTER_NAME} 2>/dev/null | base64 -d )
-export MYSQL_HOST=$(shell kubectl get svc -n mysql mysql -o=jsonpath='{.status.loadBalancer.ingress[0].ip}' --context kind-${CLUSTER_NAME} 2>/dev/null)
+export MYSQL_PASSWORD=$(shell kubectl get secret --namespace mysql mysql -o jsonpath="{.data.mysql-root-password}" --context ${CONTEXT_NAME} 2>/dev/null | base64 -d )
+
+# mysql hostname. we are using ip here because mysql try to connect to local socket
+export MYSQL_HOST=127.0.0.1
+ifeq ("docker-desktop",${CONTEXT_NAME})
+	export MYSQL_HOST=$(shell kubectl get svc -n mysql mysql -o=jsonpath='{.status.loadBalancer.ingress[0].ip}' --context ${CONTEXT_NAME} 2>/dev/null)
+endif
 
 export ARCH="arm64"
 ifeq ("x86_64", $(uname -m))
@@ -22,21 +27,21 @@ init: create display configure ## Initialize a kind cluster and install core com
 ##@ Cluster operations
 create: ## Creates a kind cluster.
 # check for existing cluster
-ifneq (,$(findstring $(CLUSTER_NAME),$(shell kind get clusters 2>/dev/null)))
+ifneq (,$(findstring $(CONTEXT_NAME),$(shell kind get clusters 2>/dev/null)))
 	@echo -e "Node(s) already exist for a cluster with the name \"riddler\"\n"
 else
-	kind create cluster --name ${CLUSTER_NAME} --config=${KIND_CONFIG_FILE_NAME}
+	kind create cluster --name ${CONTEXT_NAME} --config=${KIND_CONFIG_FILE_NAME}
 endif
 
 display: ## Display cluster information.
-	@kubectl cluster-info --context kind-${CLUSTER_NAME}
+	@kubectl cluster-info --context kind-${CONECONTEXT_NAMEXT_NAME}
 
 delete: ## Deletes the kind cluster, use docker volume purge to remove any volumes if required.
-	@echo -e "${RED}Are you sure you want to delete cluster, ${CLUSTER_NAME}?${NC}" 
+	@echo -e "${RED}Are you sure you want to delete cluster, ${CONTEXT_NAME}?${NC}" 
 	@read -n 1 -r; \
 	if [[ $$REPLY =~ ^[Yy] ]]; \
 	then \
-		kind delete cluster --name ${CLUSTER_NAME}; \
+		kind delete cluster --name ${CONTEXT_NAME}; \
 	fi
 
 configure: ## Install core cluster components, metallb, secret manager etc.
@@ -50,7 +55,11 @@ configure: ## Install core cluster components, metallb, secret manager etc.
 # helm install sealed-secrets -n kube-system --set-string fullnameOverride=sealed-secrets-controller sealed-secrets/sealed-secrets  --kube-context kind-${CLUSTER_NAME}
 
 services: ## List all the services and IPs.
-	@kubectl get svc -A -o yaml  --context kind-${CLUSTER_NAME} | yq -r '.items[] | select(.spec.type=="LoadBalancer") | .metadata.name + " -> " + .status.loadBalancer.ingress[0].ip + ":" + .spec.ports.[].port'
+ifneq ("docker-desktop",${CONTEXT_NAME})
+	@kubectl get svc -A -o yaml  --context ${CONTEXT_NAME} | yq -r '.items[] | select(.spec.type=="LoadBalancer") | .metadata.name + " -> " + .status.loadBalancer.ingress[0].hostname + ":" + .spec.ports.[].port'
+else
+	@kubectl get svc -A -o yaml  --context ${CONTEXT_NAME} | yq -r '.items[] | select(.spec.type=="LoadBalancer") | .metadata.name + " -> " + .status.loadBalancer.ingress[0].ip + ":" + .spec.ports.[].port'
+endif
 
 ##@ Package (helm) operations
 conf-helm: ## Setup help repositories.
@@ -74,7 +83,7 @@ install-pkgs: conf-helm ## Install and configure development dependencies define
 		if [ "$${override}" != "null" ]; then \
 			export command="$${command} -f overrides/$${override}"; \
 		fi; \
-		command="$${command} --install $${name} $${repo} -n $${namespace} --wait --create-namespace --kube-context kind-$${CLUSTER_NAME}"; \
+		command="$${command} --install $${name} $${repo} -n $${namespace} --wait --create-namespace --kube-context $${CONTEXT_NAME}"; \
 		echo -e "Deploying package $${namespace}/$${name}....⏳\n"; \
 		$${command}; \
 		echo -e "\n"; \
@@ -86,7 +95,7 @@ remove-pkgs: ## Remove all installed packages.
 		repo=`yq eval ".[$$k].repo" package.yaml`; \
 		namespace=`yq eval ".[$$k].namespace" package.yaml`; \
 		command="helm upgrade"; \
-		command="helm uninstall $${name} -n $${namespace} --kube-context kind-$${CLUSTER_NAME}"; \
+		command="helm uninstall $${name} -n $${namespace} --kube-context $${CONEXT_NAME}"; \
 		echo -e "Removing package $${namespace}/$${name}....\n"; \
 		$${command}; \
 		echo -e "\n"; \
@@ -113,12 +122,12 @@ else
 	$(warn uptimelabs.sql exist, skipping download!)
 endif
 	@echo -e "Importing data to local mysql cluster...⏳"
-	@mysql -u root -p${MYSQL_PASSWORD} -h ${MYSQL_HOST} uptimelabs < uptimelabs.sql
+	@mysql -u root -p${MYSQL_PASSWORD} -h ${MYSQL_HOST} -P3307 uptimelabs < uptimelabs.sql
 
 ##@ Network operations
 network-conf: ## Configuring the MetalLB network.
 	@echo -e "Configuring MetalLB network...⏳"
-	@kubectl apply -f config/metallb-config.yaml -n metallb-system --context kind-${CLUSTER_NAME}
+	@kubectl apply -f config/metallb-config.yaml -n metallb-system --context ${CONTEXT_NAME}
 
 .PHONY: help
 help:

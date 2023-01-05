@@ -8,6 +8,8 @@ auth:
 primary:
   service:
     type: LoadBalancer
+    ports:
+      mysql: 3307
 
 initdbScripts:
   createdb.sql: |-

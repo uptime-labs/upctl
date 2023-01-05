@@ -12,9 +12,6 @@ persistence:
 service:
   main:
     type: LoadBalancer
-    annotations:
-      prometheus.io/port: "9234"
-      prometheus.io/scrape: "true"
     ports:
       mqtt:
         enabled: true

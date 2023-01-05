@@ -6,6 +6,8 @@ postgresql:
 
 service:
   type: LoadBalancer
+  httpPort: 8085
+  httpsPort: 8445
 
 #checkov:skip=CKV_SECRET_6:"Base64 High Entropy String"
 extraEnv: |
@@ -33,10 +35,14 @@ extraEnv: |
   - name: DB_ADDR
     value: "mysql.mysql.svc.cluster.local"
   - name: DB_PORT
-    value: "3306"
+    value: "3307"
   - name: DB_DATABASE
     value: "keycloak"
   - name: DB_USER
     value: "uptimelabs"
   - name: DB_PASSWORD
     value: "uptimelabs"
+  - name: KEYCLOAK_USER
+    value: admin
+  - name: KEYCLOAK_PASSWORD
+    value: uptimelabs
