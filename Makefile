@@ -5,6 +5,7 @@ export NC=\033[0m # No Color
 export PROJECT_NAMESPACE=uptimelabs
 export CONTEXT_NAME=docker-desktop
 export KIND_CONFIG_FILE_NAME=config/kind.config.yaml
+export ECR_REPO='300954903401.dkr.ecr.eu-west-1.amazonaws.com'
 export OSL=$(shell uname -s | tr '[:upper:]' '[:lower:]')
 #export KIND_EXPERIMENTAL_DOCKER_NETWORK=bm-kind
 export MYSQL_PASSWORD=$(shell kubectl get secret --namespace mysql mysql -o jsonpath="{.data.mysql-root-password}" --context ${CONTEXT_NAME} 2>/dev/null | base64 -d )
@@ -22,9 +23,9 @@ endif
 
 .DEFAULT_GOAL:=help
 
+##@ Kind Cluster operations
 init: create display configure ## Initialize a kind cluster and install core components.
 
-##@ Cluster operations
 create: ## Creates a kind cluster.
 # check for existing cluster
 ifneq (,$(findstring $(CONTEXT_NAME),$(shell kind get clusters 2>/dev/null)))
@@ -54,6 +55,11 @@ configure: ## Install core cluster components, metallb, secret manager etc.
     # install sealed secrets
 # helm install sealed-secrets -n kube-system --set-string fullnameOverride=sealed-secrets-controller sealed-secrets/sealed-secrets  --kube-context kind-${CLUSTER_NAME}
 
+network-conf: ## Configuring the MetalLB network.
+	@echo -e "Configuring MetalLB network...⏳"
+	@kubectl apply -f config/metallb-config.yaml -n metallb-system --context ${CONTEXT_NAME}
+
+##@ Kubernetes Cluster operations
 services: ## List all the services and IPs.
 ifneq ("docker-desktop",${CONTEXT_NAME})
 	@kubectl get svc -A -o yaml  --context ${CONTEXT_NAME} | yq -r '.items[] | select(.spec.type=="LoadBalancer") | .metadata.name + " -> " + .status.loadBalancer.ingress[0].hostname + ":" + .spec.ports.[].port'
@@ -61,8 +67,19 @@ else
 	@kubectl get svc -A -o yaml  --context ${CONTEXT_NAME} | yq -r '.items[] | select(.spec.type=="LoadBalancer") | .metadata.name + " -> " + .status.loadBalancer.ingress[0].ip + ":" + .spec.ports.[].port'
 endif
 
+uptimelabs-cfg: ## creates uptimelabs namespace, secrets and configmaps for services
+	-@kubectl create ns uptimelabs --context ${CONTEXT_NAME}
+	@kubectl apply -f config/uptimelabs-env-secret.yaml -n uptimelabs --context ${CONTEXT_NAME}
+	@kubectl apply -f config/uptimelabs-env-configmap.yaml -n uptimelabs --context ${CONTEXT_NAME}
+
+create-image-pullsecret: uptimelabs-cfg ## create a pull secret in uptimelabs namespace for ECR private pulls
+	@echo -e "Logging into to AWS account...⏳\n"
+	@tsh app login awsconsole-shared --aws-role TeleportReadOnly
+	$(eval $@_REGPWD := $(shell tsh aws --app awsconsole-shared ecr get-login-password --region eu-west-1))
+	@kubectl create secret docker-registry regcred --docker-server=${ECR_REPO} --docker-username=AWS --docker-password=$($@_REGPWD) -n uptimelabs --context ${CONTEXT_NAME}
+
 ##@ Package (helm) operations
-conf-helm: ## Setup help repositories.
+helm-cfg: ## Setup help repositories.
 	@echo -e "Configuring repositories...\n"
 	@for k in `yq eval '. | keys | .[]' repositories.yaml`; do \
 		name=`yq eval ".[$$k].name" repositories.yaml`; \
@@ -73,7 +90,7 @@ conf-helm: ## Setup help repositories.
 	done
 	@echo -e "\n"; \
 
-install-pkgs: conf-helm ## Install and configure development dependencies defined in package.yaml.
+install-pkgs: helm-cfg ## Install and configure development dependencies defined in package.yaml.
 	@for k in `yq eval '. | keys | .[]' package.yaml`; do \
 		name=`yq eval ".[$$k].name" package.yaml`; \
 		repo=`yq eval ".[$$k].repo" package.yaml`; \
@@ -117,17 +134,12 @@ ifeq (,$(wildcard uptimelabs.sql))
 	@echo -e "Logging into to AWS account...⏳\n"
 	@tsh app login awsconsole-prod --aws-role TeleportReadOnly
 	@echo -e "Coping SQL backup from AWS S3...⏳"
-	@tsh aws s3 cp s3://428265895497-prod-wordpress-backups/uptimelabs/uptimelabs.sql .
+	@tsh aws --app awsconsole-prod s3 cp s3://428265895497-prod-wordpress-backups/uptimelabs/uptimelabs.sql .
 else
 	$(warn uptimelabs.sql exist, skipping download!)
 endif
 	@echo -e "Importing data to local mysql cluster...⏳"
 	@mysql -u root -p${MYSQL_PASSWORD} -h ${MYSQL_HOST} -P3307 uptimelabs < uptimelabs.sql
-
-##@ Network operations
-network-conf: ## Configuring the MetalLB network.
-	@echo -e "Configuring MetalLB network...⏳"
-	@kubectl apply -f config/metallb-config.yaml -n metallb-system --context ${CONTEXT_NAME}
 
 .PHONY: help
 help:

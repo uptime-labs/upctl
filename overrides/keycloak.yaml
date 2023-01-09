@@ -9,6 +9,22 @@ service:
   httpPort: 8085
   httpsPort: 8445
 
+extraInitContainers: |
+  - name: download-extensions
+    image: busybox:1.34.1
+    command:
+      - "sh"
+    args:
+      - -c
+      - |
+        echo "Downloading keycloak-event-listener-mqtt extension"
+        wget -O /deployments/event-listener-mqtt-jar-with-dependencies.jar "https://github.com/softwarefactory-project/keycloak-event-listener-mqtt/releases/download/15.0.2/event-listener-mqtt-15.0.2-jar-with-dependencies.jar"
+        echo "Downloading keycloak-scim"
+        wget -O /deployments/keycloak-scim.jar "https://github.com/gamunu/dotfiles/releases/download/v0.1.0/keycloak-scim-1.0-SNAPSHOT-all.1.jar"
+    volumeMounts:
+      - name: keycloak-extensions
+        mountPath: /deployments
+
 #checkov:skip=CKV_SECRET_6:"Base64 High Entropy String"
 extraEnv: |
   - name: KUBERNETES_NAMESPACE
@@ -46,3 +62,11 @@ extraEnv: |
     value: admin
   - name: KEYCLOAK_PASSWORD
     value: uptimelabs
+
+extraVolumes: |
+  - name: keycloak-extensions
+    emptyDir: {}
+
+extraVolumeMounts: |
+  - name: keycloak-extensions
+    mountPath: /opt/jboss/keycloak/standalone/deployments

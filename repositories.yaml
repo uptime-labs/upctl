@@ -6,3 +6,5 @@
   url: https://k8s-at-home.com/charts/
 - name: codecentric
   url: https://codecentric.github.io/helm-charts
+- name: k8shome
+  url: https://k8s-at-home.com/charts/
