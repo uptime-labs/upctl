@@ -70,3 +70,8 @@ extraVolumes: |
 extraVolumeMounts: |
   - name: keycloak-extensions
     mountPath: /opt/jboss/keycloak/standalone/deployments
+
+# doesn't work in Docker desktop for some reason
+startupProbe: |
+livenessProbe: |
+readinessProbe: |
