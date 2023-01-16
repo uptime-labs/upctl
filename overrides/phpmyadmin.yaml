@@ -1,9 +1,0 @@
-db:
-  host: mysql.mysql.svc.cluster.local
-  port: 3307
-
-service:
-  type: LoadBalancer
-  ports:
-    http: 8089
-    https: 8449

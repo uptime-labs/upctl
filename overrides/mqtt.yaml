@@ -4,6 +4,11 @@ persistence:
     mountPath: /mosquitto/data
     size: 2Gi
     accessMode: ReadWriteOnce
+  configinc:
+    enabled: true
+    type: configMap
+    mountPath: /mosquitto/configinc
+    name: mosquitto-configinc
   passwords:
     enabled: true
     type: emptyDir
@@ -13,9 +18,61 @@ service:
   main:
     type: LoadBalancer
     ports:
+      http:
+        enabled: true
+        port: 8000
       mqtt:
         enabled: true
         port: 1883
+      metrics:
+        enabled: true
+        port: 9234
+
+configmap:
+  configinc:
+    enabled: true
+    labels: {}
+    annotations: {}
+    data:
+      websocket.conf: |
+        listener 8000
+        protocol websockets
+      authentication.conf: |
+        per_listener_settings false
+        password_file /etc/mosquitto/password_file
+
+initContainers:
+  setup-passwords:
+    image: "eclipse-mosquitto:2.0.11"
+    command: ["sh"]
+    args: ["-c", "mosquitto_passwd -b -c /etc/mosquitto/password_file $mqttusername $mqttpassword; mosquitto_passwd -b /etc/mosquitto/password_file $keycloak_mqtt_user $keycloak_mqtt_password"]
+    env:
+      - name: mqttusername
+        value: mqtt
+      - name: mqttpassword
+        value: mqtt
+      - name: keycloak_mqtt_user
+        value: mqtt
+      - name: keycloak_mqtt_password
+        value: mqtt
+    volumeMounts:
+      - mountPath: /etc/mosquitto
+        name: passwords
+
+additionalContainers:
+  mqtt-exporter:
+    image: "sapcc/mosquitto-exporter:0.8.0"
+    env:
+      - name: BROKER_ENDPOINT
+        value: "tcp://localhost:1883"
+      - name: MQTT_USER
+        value: mqtt
+      - name: MQTT_PASS
+        value: mqtt
+    ports:
+      - name: metrics
+        containerPort: 9234
+        protocol: TCP
 
 auth:
   enabled: true

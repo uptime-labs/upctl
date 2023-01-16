@@ -16,10 +16,16 @@ env:
   - name: NODE_RED_ENABLE_PROJECTS
     value: true
   - name: MQTTUSER
-    value: "user"
+    value: "mqtt"
   - name: MQTTPASSWORD
-    value: "password"
+    value: "mqtt"
   - name: KEYCLOAK_USER
     value: "user"
   - name: KEYCLOAK_PASSWORD
     value: "password"
+
+envFrom:
+  - configMapRef:
+      name: uptimelabs-envs
+  - secretRef:
+      name: uptimelabs-envs

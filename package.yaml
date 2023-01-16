@@ -10,10 +10,6 @@
   repo: bitnami/mysql
   namespace: mysql
   override: mysql.yaml
-- name: phpmyadmin
-  repo: bitnami/phpmyadmin
-  namespace: phpmyadmin
-  override: phpmyadmin.yaml
 - name: keycloak
   repo: codecentric/keycloak
   namespace: keycloak
