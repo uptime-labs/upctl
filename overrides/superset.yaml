@@ -6,65 +6,7 @@ postgresql:
 
 configOverrides:
   secret: |
-    SECRET_KEY = '${encryption_key}'
-  enable_oauth: |
-    # This will make sure the redirect_uri is properly computed, even with SSL offloading
-    ENABLE_PROXY_FIX = True
-
-    from flask_appbuilder.security.manager import AUTH_OAUTH
-    AUTH_TYPE = AUTH_OAUTH
-    OAUTH_PROVIDERS = [
-        {
-            "name": "keycloak",
-            "icon": "fa-key",
-            "token_key": "access_token",
-            "remote_app": {
-                "client_id": os.getenv("KEYCLOAK_CLIENT_ID"),
-                "client_secret": os.getenv("KEYCLOAK_CLIENT_SECRET"),
-                "api_base_url": os.getenv("KEYCLOAK_KEYCLOAK_URL"),
-                "client_kwargs": {"scope": "email profile"},
-                "request_token_url": None,
-                "access_token_url": os.getenv("KEYCLOAK_KEYCLOAK_URL") + "openid-connect/token",
-                "authorize_url": os.getenv("KEYCLOAK_KEYCLOAK_URL") + "openid-connect/auth"
-            },
-        }
-    ]
-
-    # Map Authlib roles to superset roles
-    AUTH_ROLE_ADMIN = 'Admin'
-    AUTH_ROLE_PUBLIC = 'Public'
-
-    # if we should replace ALL the user's roles each login, or only on registration
-    AUTH_ROLES_SYNC_AT_LOGIN = True
-
-    # Will allow user self registration, allowing to create Flask users from Authorized User
-    AUTH_USER_REGISTRATION = True
-
-    # The default user self registration role
-    AUTH_USER_REGISTRATION_ROLE = "Admin"
-
-extraConfigs:
-  import_datasources.yaml: |
-    databases:
-    - database_name: uptimelabs
-      sqlalchemy_uri: mysql+mysqldb://root:xxxxxx@bks-dev-uptimelabs.cluster-ro-cpmlx8kozhvl.eu-west-1.rds.amazonaws.com:3306/uptimelabs
-      expose_in_sqllab: true
-      allow_run_async: false
-      allow_ctas: false 
-      allow_cvas: false
-      allow_csv_upload: false
-      extra: "{allows_virtual_table_explore: true}"
-
-extraEnv:
-  SMTP_HOST: smtp.uptimelabs.io
-  SMTP_USER: noreply@uptimelabs.io
-  SMTP_PORT: "25"
-  SMTP_MAIL_FROM: noreply@uptimelabs.io
-
-extraSecretEnv:
-  KEYCLOAK_CLIENT_ID: "superset"
-  KEYCLOAK_CLIENT_SECRET: "xxxx"
-  KEYCLOAK_KEYCLOAK_URL: https://id.dev.uptimelabs.io/auth/realms/tenants/protocol/
+    SECRET_KEY = 'uptimelabs'
 
 bootstrapScript: |
   #!/bin/bash
