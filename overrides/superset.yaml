@@ -8,6 +8,10 @@ configOverrides:
   secret: |
     SECRET_KEY = 'uptimelabs'
 
+service:
+  type: LoadBalancer
+  port: 8088
+
 bootstrapScript: |
   #!/bin/bash
   rm -rf /var/lib/apt/lists/* && \
