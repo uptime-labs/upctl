@@ -17,7 +17,7 @@ ifeq ("docker-desktop",${CONTEXT_NAME})
 endif
 
 export ARCH="arm64"
-ifeq ("x86_64", $(uname -m))
+ifneq ("x86_64", $(uname -m))
 	export ARCH="amd64"
 endif
 
@@ -35,7 +35,7 @@ else
 endif
 
 display: ## Display cluster information.
-	@kubectl cluster-info --context kind-${CONECONTEXT_NAMEXT_NAME}
+	@kubectl cluster-info --context ${CONTEXT_NAME}
 
 delete: ## Deletes the kind cluster, use docker volume purge to remove any volumes if required.
 	@echo -e "${RED}Are you sure you want to delete cluster, ${CONTEXT_NAME}?${NC}" 
@@ -52,8 +52,6 @@ configure: ## Install core cluster components, metallb, secret manager etc.
 	@kubectl wait pods -n metallb-system -l app=metallb --for condition=Ready --timeout=90s
 	@echo -e "\n"
 	@make -s network-conf
-    # install sealed secrets
-# helm install sealed-secrets -n kube-system --set-string fullnameOverride=sealed-secrets-controller sealed-secrets/sealed-secrets  --kube-context kind-${CLUSTER_NAME}
 
 network-conf: ## Configuring the MetalLB network.
 	@echo -e "Configuring MetalLB network...⏳"
@@ -120,13 +118,38 @@ remove-pkgs: ## Remove all installed packages.
 
 ##@ System dependencies and tools
 install-tools: ## Install kind and yq tools on the local machine.
-	curl -Lo ./kind https://github.com/kubernetes-sigs/kind/releases/download/v0.17.0/kind-${OSL}-amd64
-	chmod +x ./kind
-	sudo mv ./kind /usr/local/bin/kind
-
-	curl -Lo ./yq https://github.com/mikefarah/yq/releases/latest/download/yq_${OSL}_amd64
-	chmod +x ./yq
-	sudo mv ./yq /usr/local/bin/yq
+	@echo -e "Installing helm, kind and yq tools...⏳\n"
+ifneq ("linux",$(OSL))
+ifeq (, $(shell which kind))
+	@echo -e "Installing kind...⏳\n"
+	@curl -Lo ./kind https://github.com/kubernetes-sigs/kind/releases/download/v0.17.0/kind-${OSL}-${ARCH}
+	@chmod +x ./kind
+	@sudo mv ./kind /usr/local/bin/kind
+else
+	@echo -e "\u2705 kind is already installed..."
+endif
+ifeq (, $(shell which yq))
+	@echo -e "Installing yq...⏳\n"
+	@curl -Lo ./yq https://github.com/mikefarah/yq/releases/latest/download/yq_${OSL}_${ARCH}
+	@chmod +x ./yq
+	@sudo mv ./yq /usr/local/bin/yq
+else
+	@echo -e "\u2705 yq is already installed..."
+endif
+ifeq (, $(shell which helm))
+	@echo -e "Installing helm...⏳\n"
+	$(shell curl https://baltocdn.com/helm/signing.asc | gpg --dearmor | sudo tee /usr/share/keyrings/helm.gpg > /dev/null)
+	@sudo apt-get install apt-transport-https --yes
+	$(shell echo "deb [arch=${ARCH} signed-by=/usr/share/keyrings/helm.gpg] https://baltocdn.com/helm/stable/debian/ all main" | sudo tee /etc/apt/sources.list.d/helm-stable-debian.list)
+	@sudo apt-get update -y
+	@sudo apt-get install helm -y
+else
+	@echo -e "\u2705 helm is already installed..."
+endif
+else
+	@echo -e "Installing helm and yq tools...⏳\n"
+	@brew install helm yq
+endif
 
 ##@ Data operations
 import-db: ## Import mysql data from the S3.
