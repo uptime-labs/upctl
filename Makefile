@@ -110,7 +110,7 @@ remove-pkgs: ## Remove all installed packages.
 		repo=`yq eval ".[$$k].repo" package.yaml`; \
 		namespace=`yq eval ".[$$k].namespace" package.yaml`; \
 		command="helm upgrade"; \
-		command="helm uninstall $${name} -n $${namespace} --kube-context $${CONEXT_NAME}"; \
+		command="helm uninstall $${name} -n $${namespace} --kube-context $${CONTEXT_NAME}"; \
 		echo -e "Removing package $${namespace}/$${name}....\n"; \
 		$${command}; \
 		echo -e "\n"; \
