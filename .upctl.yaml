@@ -1,0 +1,84 @@
+
+repositories:
+  - name: superset
+    url: https://apache.github.io/superset
+  - name: bitnami
+    url: https://charts.bitnami.com/bitnami
+  - name: node-red
+    url: https://k8s-at-home.com/charts/
+  - name: codecentric
+    url: https://codecentric.github.io/helm-charts
+  - name: k8shome
+    url: https://k8s-at-home.com/charts/
+
+packages:
+  - name: mosquitto
+    repo: k8shome/mosquitto
+    namespace: uptimelabs
+    override: mqtt.yaml
+  - name: node-red
+    repo: k8shome/node-red
+    namespace: uptimelabs
+    override: nodered.yaml
+  - name: mysql
+    repo: bitnami/mysql
+    namespace: mysql
+    override: mysql.yaml
+  - name: keycloak
+    repo: codecentric/keycloak
+    namespace: keycloak
+    override: keycloak.yaml
+  #- name: superset
+  #  repo: superset/superset
+  #  namespace: superset
+  #  override: superset.yaml
+
+# Directory of override value files
+overrides: ./overrides
+
+teleport:
+  host: teleport.uptimelabs.io:443
+  aws_app: awsconsole-prod
+  aws_role: TeleportReadOnly
+
+kube_context: docker-desktop
+kube_config: ~/.kube/config
+
+# mysql configuration
+mysql:
+  host: 127.0.0.1 # needs to be set to the local ip of the machine
+  database: uptimelabs
+  user: uptimelabs
+  password: uptimelabs
+  port: 3307
+  db_file: /tmp/uptimelabs.sql
+  s3_bucket: 428265895497-prod-wordpress-backups
+  s3_key: uptimelabs/uptimelabs.sql
+  s3_region: eu-west-1
+
+# uptime labs configuration
+# this will configure a kubernetes secret and configmap
+# for the uptimelabs applications to use
+# name of the secret and configmap is uptimelabs-envs
+#
+# To get the base64 encoded values for the secret and configmap
+# run the following command:
+# echo -n "uptimelabs" | base64
+uptimelabs:
+  namespace: uptimelabs
+  env:
+    DNS_DOMAIN: localhost
+    GIT_SSH_COMMAND: ssh -i /data/projects/.sshkeys/id_rsa
+    KEYCLOAK_REALM: tenants
+    KEYCLOAK_URL: keycloak-http.keycloak.svc.cluster.local
+    LEX_BOT_LOCALE: en_GB
+    MQTT_HOST: mosquitto.uptimelabs.svc.cluster.local
+    MQTTHOST: mosquitto.uptimelabs.svc.cluster.local
+    MYSQL_DATABASE: uptimelabs
+    MYSQL_HOST: mysql.mysql.svc.cluster.local
+    MYSQL_PORT: "3307"
+  secret:
+    MYSQL_PASSWORD: dXB0aW1lbGFicwo=
+    MYSQL_USER: dXB0aW1lbGFicwo=
+    PAGERDUTYAPITOKEN: dXB0aW1lbGFicwo=
+    SLACKAPITOKEN: dXB0aW1lbGFicwo=
