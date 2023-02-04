@@ -3,9 +3,11 @@ module github.com/uptime-labs/upctl
 go 1.19
 
 require (
+	github.com/briandowns/spinner v1.20.0
 	github.com/mittwald/go-helm-client v0.11.5
 	github.com/spf13/cobra v1.6.1
 	github.com/spf13/viper v1.15.0
+	helm.sh/helm/v3 v3.10.0
 )
 
 require (
@@ -18,7 +20,6 @@ require (
 	github.com/Masterminds/squirrel v1.5.3 // indirect
 	github.com/asaskevich/govalidator v0.0.0-20210307081110-f21760c49a8d // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
-	github.com/briandowns/spinner v1.20.0 // indirect
 	github.com/cespare/xxhash/v2 v2.1.2 // indirect
 	github.com/chai2010/gettext-go v1.0.2 // indirect
 	github.com/containerd/containerd v1.6.8 // indirect
@@ -124,7 +125,6 @@ require (
 	gopkg.in/ini.v1 v1.67.0 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
-	helm.sh/helm/v3 v3.10.0 // indirect
 	k8s.io/api v0.25.2 // indirect
 	k8s.io/apiextensions-apiserver v0.25.2 // indirect
 	k8s.io/apimachinery v0.25.2 // indirect
