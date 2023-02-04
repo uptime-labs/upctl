@@ -190,6 +190,6 @@ var versionCmd = &cobra.Command{
 	Short: "Print the version number of upctl",
 	Long:  `Print the version number of upctl`,
 	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Println("upctl local development environment creator -- HEAD")
+		fmt.Println("v0.2.2")
 	},
 }
