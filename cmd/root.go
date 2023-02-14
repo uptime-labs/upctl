@@ -2,20 +2,20 @@ package cmd
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"time"
 
 	"github.com/briandowns/spinner"
-	helm "github.com/mittwald/go-helm-client"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
 
-// Config is the struct that holds the Repository config values
+// Repository Config is the struct that holds the Repository config values
 type Repository struct {
-	Name string `mapstructure:"name"`
-	URL  string `mapstructure:"url"`
+	Name     string `mapstructure:"name"`
+	URL      string `mapstructure:"url"`
+	Username string `mapstructure:"username"`
+	Password string `mapstructure:"password"`
 }
 
 // Package is the struct that holds the Package config values
@@ -26,6 +26,7 @@ type Package struct {
 	Override  string `mapstructure:"override"`
 }
 
+// MySQLConfig is the struct that holds the config values
 type MySQLConfig struct {
 	Host     string `mapstructure:"host"`
 	Database string `mapstructure:"database"`
@@ -38,11 +39,22 @@ type MySQLConfig struct {
 	S3Region string `mapstructure:"s3_region"`
 }
 
+// TeleportConfig is the struct that holds the Teleport config values
 type TeleportConfig struct {
 	Host      string `mapstructure:"host"`
 	AWSApp    string `mapstructure:"aws_app"`
 	AWSRole   string `mapstructure:"aws_role"`
 	AWSRegion string `mapstructure:"aws_region"`
+}
+
+// DockerConfig is the struct that holds the Docker config values
+type DockerConfig struct {
+	Name        string   `mapstructure:"name"`
+	Namespaces  []string `mapstructure:"namespaces"`
+	Registry    string   `mapstructure:"registry"`
+	Username    string   `mapstructure:"username"`
+	Password    string   `mapstructure:"password"`
+	UseTeleport bool     `mapstructure:"use_teleport"`
 }
 
 var (
@@ -59,15 +71,15 @@ var (
 	packages       []Package
 	mysqlConfig    MySQLConfig
 	teleportConfig TeleportConfig
+	dockerConfig   DockerConfig
 	overrides      string
 	kubeContext    string
 	kubeConfig     string
 	teleportHost   string
 
-	// HelmClient is the Helm client
-	helmClient helm.Client
-
 	progress *spinner.Spinner
+
+	kubeconfigBytes []byte
 )
 
 // Execute executes the root command.
@@ -86,10 +98,8 @@ func init() {
 	// Add subcommands flags
 	installCmd.Flags().BoolP("all", "a", false, "Install all packages")
 
-	rootCmd.AddCommand(installCmd)
-	rootCmd.AddCommand(removeCmd)
-	rootCmd.AddCommand(versionCmd)
-	rootCmd.AddCommand(importDBCmd)
+	rootCmd.AddCommand(installCmd, removeCmd, versionCmd,
+		importDBCmd, configCmd, listCmd)
 }
 
 func initConfig() {
@@ -124,19 +134,26 @@ func initConfig() {
 
 	err = viper.UnmarshalKey("packages", &packages)
 	if err != nil {
-		fmt.Errorf("Error unmarshaling packages: %s", err.Error())
+		fmt.Printf("Error unmarshaling packages: %s", err.Error())
 		os.Exit(1)
 	}
 
 	err = viper.UnmarshalKey("teleport", &teleportConfig)
 	if err != nil {
-		fmt.Errorf("Error unmarshaling teleport: %s", err.Error())
+		fmt.Printf("Error unmarshaling teleport: %s", err.Error())
 		os.Exit(1)
 	}
 
 	err = viper.UnmarshalKey("mysql", &mysqlConfig)
 	if err != nil {
-		fmt.Errorf("Error unmarshaling mysql: %s", err.Error())
+		fmt.Printf("Error unmarshaling mysql: %s", err.Error())
+		os.Exit(1)
+	}
+
+	// unmarshall docker config
+	err = viper.UnmarshalKey("docker_config", &dockerConfig)
+	if err != nil {
+		fmt.Printf("Error unmarshaling docker_config: %s", err.Error())
 		os.Exit(1)
 	}
 
@@ -147,38 +164,11 @@ func initConfig() {
 
 	absPath := cleanPath(kubeConfig)
 
-	kubeconfigBytes, err := ioutil.ReadFile(absPath)
+	kubeconfigBytes, err = os.ReadFile(absPath)
 	if err != nil {
-		fmt.Errorf("Error reading kubeconfig file: %s", err.Error())
+		fmt.Printf("Error reading kubeconfig file: %s", err.Error())
 		os.Exit(1)
 	}
-
-	opt := &helm.KubeConfClientOptions{
-		Options: &helm.Options{
-			Namespace:        "uptimelabs", // Change this to the namespace you wish the client to operate in.
-			RepositoryCache:  "/tmp/.helmcache",
-			RepositoryConfig: "/tmp/.helmrepo",
-			Debug:            false,
-			Linting:          false,
-			DebugLog: func(format string, v ...interface{}) {
-				fmt.Printf(format, v...)
-				fmt.Println()
-				progress.Restart()
-			},
-		},
-		KubeContext: kubeContext,
-		KubeConfig:  kubeconfigBytes,
-	}
-
-	// Create a new Helm client.
-	client, err := helm.NewClientFromKubeConf(opt, helm.Burst(100), helm.Timeout(10e9))
-	if err != nil {
-		fmt.Errorf("Error creating Helm client: %s", err.Error())
-		os.Exit(1)
-	}
-
-	// Set the global Helm client
-	helmClient = client
 
 	// Set the global progress spinner
 	progress = spinner.New(spinner.CharSets[14], 100*time.Millisecond, spinner.WithWriter(os.Stderr))
@@ -190,6 +180,10 @@ var versionCmd = &cobra.Command{
 	Short: "Print the version number of upctl",
 	Long:  `Print the version number of upctl`,
 	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Println("v0.2.2")
+		fmt.Println("v0.3.0")
 	},
+}
+
+func StopProgress() {
+	progress.Stop()
 }

@@ -2,7 +2,14 @@ package cmd
 
 import (
 	"bufio"
+	"bytes"
+	"context"
 	"fmt"
+	helm "github.com/mittwald/go-helm-client"
+	v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/tools/clientcmd"
 	"log"
 	"os"
 	"os/exec"
@@ -85,4 +92,105 @@ func ExecuteCommand(command string, args ...string) error {
 	<-stdoutDone
 	<-stderrDone
 	return nil
+}
+
+// Create kubernetes clientset
+func createClientSet() (*kubernetes.Clientset, error) {
+	overrides := &clientcmd.ConfigOverrides{
+		CurrentContext: kubeContext,
+	}
+
+	absPath := cleanPath(kubeConfig)
+	// get the kubeconfig
+	configLoadingRules := &clientcmd.ClientConfigLoadingRules{ExplicitPath: absPath}
+	cfg := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(configLoadingRules, overrides)
+
+	// get client config from bytes
+	config, err := cfg.ClientConfig()
+	if err != nil {
+		return nil, err
+	}
+
+	clientset, err := kubernetes.NewForConfig(config)
+	if err != nil {
+		return nil, err
+	}
+
+	return clientset, nil
+}
+
+// create a namespace
+func createNamespace(ctx context.Context, name string) error {
+	clientset, err := createClientSet()
+	if err != nil {
+		return err
+	}
+
+	_, err = clientset.CoreV1().Namespaces().Create(ctx, &v1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: name,
+		},
+	}, metav1.CreateOptions{})
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// tshAwsEcrLogin
+func tshAwsEcrLogin() (string, error) {
+	cmd := exec.Command("tsh", "aws", "ecr", "get-login-password", "--region", "eu-west-1")
+
+	var outBuf, errBuf bytes.Buffer
+	cmd.Stdout = &outBuf
+	cmd.Stderr = &errBuf
+
+	if err := cmd.Run(); err != nil {
+		return "", fmt.Errorf("error executing command: %v, stderr: %s", err, errBuf.String())
+	}
+
+	scanner := bufio.NewScanner(&outBuf)
+	for scanner.Scan() {
+		return scanner.Text(), nil
+	}
+	return "", fmt.Errorf("no password found")
+}
+
+// create helm client
+func createHelmClient(namespace string) helm.Client {
+	opt := &helm.KubeConfClientOptions{
+		Options: &helm.Options{
+			Namespace:        namespace,
+			RepositoryCache:  "/tmp/.helmcache",
+			RepositoryConfig: "/tmp/.helmrepo",
+			Debug:            true,
+			Linting:          false,
+			DebugLog: func(format string, v ...interface{}) {
+				progress.Restart()
+				fmt.Printf(format, v...)
+				fmt.Println()
+			},
+		},
+		KubeContext: kubeContext,
+		KubeConfig:  kubeconfigBytes,
+	}
+
+	// Create a new Helm client.
+	client, err := helm.NewClientFromKubeConf(opt, helm.Burst(100), helm.Timeout(10e9))
+	if err != nil {
+		fmt.Printf("Error creating Helm client: %s", err.Error())
+		os.Exit(1)
+	}
+
+	return client
+}
+
+func contains(elements []string, element string) bool {
+	for _, n := range elements {
+		if n == element {
+			return true
+		}
+	}
+	return false
 }

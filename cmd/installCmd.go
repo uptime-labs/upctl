@@ -3,7 +3,6 @@ package cmd
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path"
 	"time"
@@ -19,22 +18,12 @@ var installCmd = &cobra.Command{
 	Long: `Install a package using Helm. The package argument is optional.
 	provide --all to install all packages`,
 	Args: cobra.MinimumNArgs(0),
-	PreRun: func(cmd *cobra.Command, args []string) {
+	Run: func(cmd *cobra.Command, args []string) {
 		if !(len(args) > 0 || cmd.Flag("all").Changed) {
 			fmt.Println("Please provide a package name or --all")
 			os.Exit(1)
 		}
 
-		progress.Start()
-		defer progress.Stop()
-		fmt.Println("Adding repositories...")
-
-		for _, r := range repositories {
-			addRepository(r.Name, r.URL)
-			progress.Restart()
-		}
-	},
-	Run: func(cmd *cobra.Command, args []string) {
 		var pkg *Package
 		if len(args) > 0 {
 			for _, p := range packages {
@@ -60,6 +49,7 @@ var installCmd = &cobra.Command{
 			for _, pkg := range packages {
 				installPkg(&pkg)
 				progress.Restart()
+				fmt.Println()
 			}
 		}
 	},
@@ -67,47 +57,62 @@ var installCmd = &cobra.Command{
 
 func installPkg(pkg *Package) {
 	name := pkg.Name
-	repo := pkg.Repo
+	r := pkg.Repo
 	namespace := pkg.Namespace
 
 	overridePath := path.Join(cleanPath(overrides), pkg.Override)
-	fmt.Printf("\nInstalling package %s from repo %s with namespace %s and override %s\n", name, repo, namespace, overridePath)
 
-	values, err := ioutil.ReadFile(overridePath)
-	if err != nil {
-		fmt.Errorf("Error reading override file %s: %s", overridePath, err.Error())
-		os.Exit(1)
+	var values []byte
+	// check if is a file
+	info, err := os.Stat(overridePath)
+	if err == nil && !info.IsDir() {
+		values, err = os.ReadFile(overridePath)
+		if err != nil {
+			fmt.Printf("error reading override file %s: %s", overridePath, err.Error())
+			progress.Stop()
+			os.Exit(1)
+		}
+		fmt.Printf("Package: %s, Repo: %s, Namespace %s, Override: %s\n", name, r, namespace, overridePath)
+	} else {
+		fmt.Printf("Package: %s, Repo: %s, Namespace: %s\n", name, r, namespace)
 	}
 
 	// Run the command to install the package with the specified values
 	chartSpec := helmclient.ChartSpec{
-		ReleaseName: name,
-		ChartName:   repo,
-		Namespace:   namespace,
-		UpgradeCRDs: true,
-		Wait:        true,
-		ValuesYaml:  string(values),
-		Timeout:     time.Duration(1) * time.Minute,
+		ReleaseName:     name,
+		ChartName:       r,
+		Namespace:       namespace,
+		UpgradeCRDs:     true,
+		Wait:            true,
+		CreateNamespace: true,
+		ValuesYaml:      string(values),
+		Timeout:         time.Duration(5) * time.Minute,
 	}
 
+	client := createHelmClient(namespace)
 	// Install a chart release.
 	// Note that helmclient.Options.Namespace should ideally match the namespace in chartSpec.Namespace.
-	if _, err := helmClient.InstallOrUpgradeChart(context.Background(), &chartSpec, nil); err != nil {
-		fmt.Errorf("Error installing package %s: %s", name, err.Error())
+	if _, err := client.InstallOrUpgradeChart(context.Background(), &chartSpec, nil); err != nil {
+		fmt.Printf("error installing package %s: %s\n", name, err.Error())
+		progress.Stop()
 		os.Exit(2)
 	}
 }
 
-func addRepository(name string, url string) {
+func addRepository(name string, url string, user string, password string) {
 	fmt.Printf(" %s with URL %s\n", name, url)
 	// Run the command to add the repository
 	// Add a chart-repository to the client.
-
-	if err := helmClient.AddOrUpdateChartRepo(repo.Entry{
-		Name: name,
-		URL:  url,
+	client := createHelmClient("default")
+	if err := client.AddOrUpdateChartRepo(repo.Entry{
+		Name:               name,
+		URL:                url,
+		Username:           user,
+		Password:           password,
+		PassCredentialsAll: true,
 	}); err != nil {
-		fmt.Errorf("Error adding repo %s: %s", name, err.Error())
+		fmt.Printf("error adding repo %s: %s\n", name, err.Error())
+		progress.Stop()
 		os.Exit(2)
 	}
 }

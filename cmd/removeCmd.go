@@ -36,9 +36,11 @@ var removeCmd = &cobra.Command{
 		progress.Start()
 		defer progress.Stop()
 
+		client := createHelmClient(pkg.Namespace)
 		// Remove the Helm package
-		if err := helmClient.UninstallReleaseByName(pkg.Name); err != nil {
+		if err := client.UninstallReleaseByName(pkg.Name); err != nil {
 			fmt.Println(err)
+			progress.Stop()
 			os.Exit(2)
 		}
 
