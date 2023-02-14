@@ -38,6 +38,8 @@ Install Docker on your local machine. You will need Docker in order to use kind.
 - awscli
 - WSL2 - if you are using Windows
 
+Read more about installing the dependencies [here](docs/dependencies.md)
+
 ### Optional dependencies
 - kind v0.17.0 or later - We recommend using `Kind` if you are on GNU-Linux.
 
