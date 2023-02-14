@@ -91,35 +91,37 @@ $ kubeclt apply -f config/metallb-config.yaml
 
 We use helm as a package manager to install packages into the Kubernetes clusters. To simplify the management of repositories and the packages the local-stack includes a set of scripts and configuration files.
 
-- **repositories.yaml**
-  
-  This fie contains a list of required helm repositories to pull helm packages. When you are configuring repositories you can obtain the repository URL from the maintainer usualy from (https://artifacthub.io/) and give any preferred name for the name feild.
-  Following is an example of configuring the superset repository, you can give any unique `name` to the name property.
+- **upctl.yaml**
 
-  ```yaml
-  - name: superset
-    url: https://apache.github.io/superset
-  ```
+  - `repositories`
 
-- **package.yaml**
+    This fie contains a list of required helm repositories to pull helm packages. When you are configuring repositories you can obtain the repository URL from the maintainer usualy from (https://artifacthub.io/) and give any preferred name for the name feild.
+    Following is an example of configuring the superset repository, you can give any unique `name` to the name property.
 
-  This file contains all the packages that required to be installed into the local Kubernetes cluster. To define a installable package there are several properties.
+    ```yaml
+    - name: superset
+      url: https://apache.github.io/superset
+    ```
 
-  - `name` - The name of helm package. This will be used as an installation name and the name will be prepended to the Kubernetes resources created by this helm package. You can give any preferred name for this.
-  - `repo` - The combination of repo and package names in format `<repo name>/<package name>`. The package name as defined by the helm package maintainer. Repository name is the name given in the `repositories.yaml`.
-  - `namespace` - Namespace of the package resources should install into.
-  - `override` - Helm value files to override default helm package values.
+  - `packages`
 
-Values for each package can be modified using the overrides config files located in the `<root>/overrides` directory.
+    This file contains all the packages that required to be installed into the local Kubernetes cluster. To define a installable package there are several properties.
 
-```yaml
-- name: mosquitto # package name
-  repo: k8shome/mosquitto # hem repository name / chart name
-  namespace: uptimelabs # namespace to install the package (this will get automatically created)
-  override: mqtt.yaml # helm value file for the configuration override
-```
+    - `name` - The name of helm package. This will be used as an installation name and the name will be prepended to the Kubernetes resources created by this helm package. You can give any preferred name for this.
+    - `repo` - The combination of repo and package names in format `<repo name>/<package name>`. The package name as defined by the helm package maintainer. Repository name is the name given in the `repositories.yaml`.
+    - `namespace` - Namespace of the package resources should install into.
+    - `override` - Helm value files to override default helm package values.
 
-To simply install the pre-defined packages execute this command in the local-stack directory.
+    Values for each package can be modified using the overrides config files located in the `<root>/overrides` directory.
+    
+    ```yaml
+    - name: mosquitto # package name
+      repo: k8shome/mosquitto # hem repository name / chart name
+      namespace: uptimelabs # namespace to install the package (this will get automatically created)
+      override: mqtt.yaml # helm value file for the configuration override
+    ```
+
+- To simply install the pre-defined packages execute this command in the local-stack directory.
 
 ```bash
 $ upctl install --all
