@@ -1,4 +1,14 @@
+# This is the configuration file for the upctl command line tool.
+# The file is in YAML format.
 
+# repositories is a list of Helm repositories to add to the local Helm
+# installation. The repositories are added before any packages are installed.
+# The name is the name of the repository, and the url is the URL of the
+# repository.
+
+# The username and password are optional. If specified, the username and
+# password are used to authenticate with the repository.
+# The password should be a base64 encoded string.
 repositories:
   - name: superset
     url: https://apache.github.io/superset
@@ -10,8 +20,25 @@ repositories:
     url: https://codecentric.github.io/helm-charts
   - name: k8shome
     url: https://k8s-at-home.com/charts/
+  - name: metallb
+    url: https://metallb.github.io/metallb
+  - name: uptimelabs
+    url: https://charts.shared.uptimelabs.io/
+    username: metropolis
+    password: <base64 encoded password>
 
+# packages is a list of Helm packages to install. The name is the name of the
+# package, and the repo is the name of the repository to install the package
+# from. The namespace is the namespace to install the package into. If the
+# namespace does not exist, it will be created. If the namespace is not
+# specified, the package will be installed into the default namespace.
 packages:
+  - name: metallb
+    repo: metallb/metallb
+    namespace: metallb-system
+  - name: uptimelabs-envs
+    repo: uptimelabs/uptimelabs-envs
+    namespace: uptimelabs
   - name: mosquitto
     repo: k8shome/mosquitto
     namespace: uptimelabs
@@ -33,18 +60,59 @@ packages:
   #  namespace: superset
   #  override: superset.yaml
 
-# Directory of override value files
+# overrides is a directory containing override files for packages.
+# package overrides are applied before the package is installed.
+# The name of the override file must match the name of the package.
+# The override file is a YAML file containing the values to override.
+# The values are merged with the default values of the package.
 overrides: ./overrides
 
+# teleport is the configuration for the Teleport client.
+# The host is the address of the Teleport server.
+# The aws_app is the name of the AWS application to use for AWS credentials.
+# The aws_role is the name of the AWS role to assume.
 teleport:
   host: teleport.uptimelabs.io:443
   aws_app: awsconsole-prod
   aws_role: TeleportReadOnly
 
+# kube_context is the name of the Kubernetes context to use.
 kube_context: docker-desktop
+# kube_config is the path to the kubeconfig file to use.
 kube_config: ~/.kube/config
 
-# mysql configuration
+# docker_config is the configuration for the Docker pull secret.
+# The name is the name of the secret.
+# The registry is the name of the registry to authenticate with.
+# The username is the username to authenticate with.
+# The password is the password to authenticate with.
+# The use_teleport is a boolean indicating whether to use Teleport to
+# authenticate with the registry.
+# The namespaces are a list of namespaces to add the secret to.
+docker_config:
+  name: regcred
+  registry: 300954903401.dkr.ecr.eu-west-1.amazonaws.com
+  username: AWS
+  #password: ""
+  use_teleport: true
+  namespaces:
+    - uptimelabs
+    - mysql
+    - keycloak
+    - superset
+    - metallb-system
+    - default
+
+# mysql is the configuration for the MySQL database.
+# The host is the address of the MySQL server.
+# The database is the name of the database import data into.
+# The user is the username to use to connect to the database.
+# The password is the password to use to connect to the database.
+# The port is the port to use to connect to the database.
+# The db_file is the path to the database dump file.
+# The s3_bucket is the name of the S3 bucket to download the database dump from.
+# The s3_key is the name of the S3 key to download the database dump from.
+# The s3_region is the region of the S3 bucket.
 mysql:
   host: 127.0.0.1 # needs to be set to the local ip of the machine
   database: uptimelabs
@@ -55,30 +123,3 @@ mysql:
   s3_bucket: 428265895497-prod-wordpress-backups
   s3_key: uptimelabs/uptimelabs.sql
   s3_region: eu-west-1
-
-# uptime labs configuration
-# this will configure a kubernetes secret and configmap
-# for the uptimelabs applications to use
-# name of the secret and configmap is uptimelabs-envs
-#
-# To get the base64 encoded values for the secret and configmap
-# run the following command:
-# echo -n "uptimelabs" | base64
-uptimelabs:
-  namespace: uptimelabs
-  env:
-    DNS_DOMAIN: localhost
-    GIT_SSH_COMMAND: ssh -i /data/projects/.sshkeys/id_rsa
-    KEYCLOAK_REALM: tenants
-    KEYCLOAK_URL: keycloak-http.keycloak.svc.cluster.local
-    LEX_BOT_LOCALE: en_GB
-    MQTT_HOST: mosquitto.uptimelabs.svc.cluster.local
-    MQTTHOST: mosquitto.uptimelabs.svc.cluster.local
-    MYSQL_DATABASE: uptimelabs
-    MYSQL_HOST: mysql.mysql.svc.cluster.local
-    MYSQL_PORT: "3307"
-  secret:
-    MYSQL_PASSWORD: dXB0aW1lbGFicwo=
-    MYSQL_USER: dXB0aW1lbGFicwo=
-    PAGERDUTYAPITOKEN: dXB0aW1lbGFicwo=
-    SLACKAPITOKEN: dXB0aW1lbGFicwo=

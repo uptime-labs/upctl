@@ -33,25 +33,20 @@ Kubernetes in Docker (kind) is a tool for running local Kubernetes clusters usin
 Install Docker on your local machine. You will need Docker in order to use kind.
 
 - Docker Desktop
-- make
-- Helm 3.2.0+
-- yq
 - kubectl
 - mysql-client
 - awscli
-- WSL2 - Windows Only
+- WSL2 - if you are using Windows
 
 ### Optional dependencies
 - kind v0.17.0 or later - We recommend using `Kind` if you are on GNU-Linux.
 
-## Setting up local-stack
-
-### 1.  Creating a cluster
+### 1. Creating a local Kubernetes cluster
 
 #### 1.1 Kind cluster - if you have docker desktop, skip to step 1.2
 
 ```bash
-$ make init
+$ kind create cluster --cluster config/kind.config.yaml
 ```
 
 This command will create a local Kubernetes cluster using Docker containers as the nodes. You can then use kubectl, the Kubernetes command-line interface, to deploy and manage applications on the cluster.
@@ -63,14 +58,43 @@ This command will create a local Kubernetes cluster using Docker containers as t
 <img src="./docs/docker.png" width="500"/>
 
 
+### 1.3 Configure Helm chart repositories
+
+This command will configure the helm repositories for the local Kubernetes cluster. This is required to pull the helm packages from the helm repositories.
+
+The repositories are configured in the `.upctl.yaml` file. You can add or remove repositories from the file and then run the command to configure the repositories.
+for the Uptimelabs private Helm repository you must configure the username and password in the `.upctl.yaml` file.
+
+```bash
+$ upctl config r
+```
+
+### 1.4 Configure ECR credentials
+
+This command will configure the ECR credentials for the local Kubernetes cluster. This is required to pull the images from the private ECR repository.
+
+```bash
+$ upctl config d
+```
+
+### 1.5 Install metallb and configure for kind cluster (skip if you are using docker desktop)
+
+- Read more about metallb [here](https://metallb.universe.tf/)
+- Read more about network configuration with metallb [here](docs/network.md)
+
+```bash
+$ upctl install metallb
+$ kubeclt apply -f config/metallb-config.yaml
+```
+
 ### 2. Installing Packages and Services
 
-We use helm as a package manager to install packages into the Kubernetes clusters. To simlplyfy the management of repositories and the packages the local-stack includes a set of scripts and configuration files.
+We use helm as a package manager to install packages into the Kubernetes clusters. To simplify the management of repositories and the packages the local-stack includes a set of scripts and configuration files.
 
 - **repositories.yaml**
   
-  This fie contains a list of required helm repositories to pull helm packages. When you are configuring repositories you can obtain the repository URL from the maintainer usualy from (https://artifacthub.io/) and give any prefered name for the name feild.
-  Following is an exmaple of configuring the superset repository, you can give any unique `name` to the name property.
+  This fie contains a list of required helm repositories to pull helm packages. When you are configuring repositories you can obtain the repository URL from the maintainer usualy from (https://artifacthub.io/) and give any preferred name for the name feild.
+  Following is an example of configuring the superset repository, you can give any unique `name` to the name property.
 
   ```yaml
   - name: superset
@@ -81,7 +105,7 @@ We use helm as a package manager to install packages into the Kubernetes cluster
 
   This file contains all the packages that required to be installed into the local Kubernetes cluster. To define a installable package there are several properties.
 
-  - `name` - The name of helm package. This will be used as a installation name and the name will be prepended to the Kubernetes resources created by this helm package. You can give any prefered name for this.
+  - `name` - The name of helm package. This will be used as an installation name and the name will be prepended to the Kubernetes resources created by this helm package. You can give any preferred name for this.
   - `repo` - The combination of repo and package names in format `<repo name>/<package name>`. The package name as defined by the helm package maintainer. Repository name is the name given in the `repositories.yaml`.
   - `namespace` - Namespace of the package resources should install into.
   - `override` - Helm value files to override default helm package values.
@@ -95,8 +119,14 @@ Values for each package can be modified using the overrides config files located
   override: mqtt.yaml # helm value file for the configuration override
 ```
 
-To simply install the pre-defined packages excute this command in the local-stack directory.
+To simply install the pre-defined packages execute this command in the local-stack directory.
 
 ```bash
-$ make install-packages
+$ upctl install --all
+```
+
+To install a specific package
+
+```bash
+$ upctl install <package name>
 ```
