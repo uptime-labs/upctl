@@ -68,6 +68,7 @@ func ExecuteCommand(command string, args ...string) error {
 	stderrDone := make(chan struct{})
 	go func() {
 		for outScanner.Scan() {
+			progress.Restart()
 			fmt.Println(outScanner.Text())
 			result.Stdout += outScanner.Text() + "\n"
 		}
@@ -78,6 +79,7 @@ func ExecuteCommand(command string, args ...string) error {
 	}()
 	go func() {
 		for errScanner.Scan() {
+			progress.Restart()
 			fmt.Println(errScanner.Text())
 			result.Stderr += errScanner.Text() + "\n"
 		}
@@ -100,7 +102,7 @@ func createClientSet() (*kubernetes.Clientset, error) {
 		CurrentContext: kubeContext,
 	}
 
-	absPath := cleanPath(kubeConfig)
+	absPath := cleanPath(kubeConfigFile)
 	// get the kubeconfig
 	configLoadingRules := &clientcmd.ClientConfigLoadingRules{ExplicitPath: absPath}
 	cfg := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(configLoadingRules, overrides)
@@ -159,7 +161,7 @@ func tshAwsEcrLogin() (string, error) {
 
 // create helm client
 func createHelmClient(namespace string) helm.Client {
-	opt := &helm.KubeConfClientOptions{
+	opt := &helm.RestConfClientOptions{
 		Options: &helm.Options{
 			Namespace:        namespace,
 			RepositoryCache:  "/tmp/.helmcache",
@@ -172,12 +174,11 @@ func createHelmClient(namespace string) helm.Client {
 				fmt.Println()
 			},
 		},
-		KubeContext: kubeContext,
-		KubeConfig:  kubeconfigBytes,
+		RestConfig: restConfig,
 	}
 
 	// Create a new Helm client.
-	client, err := helm.NewClientFromKubeConf(opt, helm.Burst(100), helm.Timeout(10e9))
+	client, err := helm.NewClientFromRestConf(opt)
 	if err != nil {
 		fmt.Printf("Error creating Helm client: %s", err.Error())
 		os.Exit(1)

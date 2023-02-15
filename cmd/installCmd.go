@@ -94,6 +94,7 @@ func installPkg(pkg *Package) {
 	// Note that helmclient.Options.Namespace should ideally match the namespace in chartSpec.Namespace.
 	if _, err := client.InstallOrUpgradeChart(context.Background(), &chartSpec, nil); err != nil {
 		fmt.Printf("error installing package %s: %s\n", name, err.Error())
+		fmt.Println("Maybe you need to add the repository first? Try running 'upctl config repo' first")
 		progress.Stop()
 		os.Exit(2)
 	}

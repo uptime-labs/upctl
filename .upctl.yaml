@@ -55,6 +55,10 @@ packages:
     repo: codecentric/keycloak
     namespace: keycloak
     override: keycloak.yaml
+  - name: uptimelabs-middleware
+    repo: uptimelabs/uptimelabs-middleware
+    namespace: uptimelabs
+    override: middleware.yaml
   #- name: superset
   #  repo: superset/superset
   #  namespace: superset
@@ -114,7 +118,9 @@ docker_config:
 # The s3_key is the name of the S3 key to download the database dump from.
 # The s3_region is the region of the S3 bucket.
 mysql:
-  host: 127.0.0.1 # needs to be set to the local ip of the machine
+  # needs to be set to the local ip of the machine or service IP of the mysql kube service
+  # kubectl get svc -n mysql and get the loadbalancer ip
+  host: 127.0.0.1
   database: uptimelabs
   user: uptimelabs
   password: uptimelabs
