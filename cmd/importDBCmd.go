@@ -21,18 +21,21 @@ var importDBCmd = &cobra.Command{
 		path, err := exec.LookPath("tsh")
 		if err != nil {
 			fmt.Println("Error finding tsh:", err)
+			progress.Stop()
 			os.Exit(1)
 		}
 
 		fmt.Println("Authenticating with Teleport...")
 		if err := ExecuteCommand(path, "login", fmt.Sprintf("--proxy=%s", teleportConfig.Host)); err != nil {
 			fmt.Println("Error authenticating with Teleport:", err)
+			progress.Stop()
 			os.Exit(2)
 		}
 
 		fmt.Println("Authenticating with AWS...")
 		if err := ExecuteCommand(path, "apps", "login", teleportConfig.AWSApp, "--aws-role", teleportConfig.AWSRole); err != nil {
 			fmt.Println("Error authenticating with AWS:", err)
+			progress.Stop()
 			os.Exit(2)
 		}
 	},
@@ -51,6 +54,7 @@ var importDBCmd = &cobra.Command{
 				fmt.Sprintf("s3://%s/%s", mysqlConfig.S3Bucket, mysqlConfig.S3Key), mysqlConfig.DBFile,
 				"--region", mysqlConfig.S3Region); err != nil {
 				fmt.Println("Error downloading database:", err)
+				progress.Stop()
 				os.Exit(2)
 			}
 		}
@@ -59,6 +63,7 @@ var importDBCmd = &cobra.Command{
 		path, err := exec.LookPath("mysql")
 		if err != nil {
 			fmt.Println("Error finding mysql:", err)
+			progress.Stop()
 			os.Exit(1)
 		}
 
@@ -67,6 +72,7 @@ var importDBCmd = &cobra.Command{
 		if err := ExecuteCommand(path, "-h", mysqlConfig.Host, "-P", mysqlConfig.Port, "-u", mysqlConfig.User,
 			fmt.Sprintf("-p%s", mysqlConfig.Password), mysqlConfig.Database, "-e", fmt.Sprint("source ", mysqlConfig.DBFile)); err != nil {
 			fmt.Println("Error importing database:", err)
+			progress.Stop()
 			os.Exit(2)
 		}
 	},

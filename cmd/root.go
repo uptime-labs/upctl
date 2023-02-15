@@ -2,12 +2,15 @@ package cmd
 
 import (
 	"fmt"
+	helm "github.com/mittwald/go-helm-client"
+	"k8s.io/client-go/tools/clientcmd"
 	"os"
 	"time"
 
 	"github.com/briandowns/spinner"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	restclient "k8s.io/client-go/rest"
 )
 
 // Repository Config is the struct that holds the Repository config values
@@ -74,12 +77,15 @@ var (
 	dockerConfig   DockerConfig
 	overrides      string
 	kubeContext    string
-	kubeConfig     string
+	kubeConfigFile string
 	teleportHost   string
 
 	progress *spinner.Spinner
 
 	kubeconfigBytes []byte
+
+	restConfig *restclient.Config
+	helmClient *helm.Client
 )
 
 // Execute executes the root command.
@@ -117,6 +123,11 @@ func initConfig() {
 		viper.SetConfigType("yaml")
 		viper.SetConfigName(".upctl")
 	}
+
+	// Set default values
+	viper.SetDefault("overrides", "./overrides")
+	viper.SetDefault("kube_context", "docker-desktop")
+	viper.SetDefault("kube_config", "~/.kube/config")
 
 	if err := viper.ReadInConfig(); err == nil {
 		fmt.Println("Using config file:", viper.ConfigFileUsed())
@@ -159,14 +170,28 @@ func initConfig() {
 
 	overrides = viper.GetString("overrides")
 	kubeContext = viper.GetString("kube_context")
-	kubeConfig = viper.GetString("kube_config")
+	kubeConfigFile = viper.GetString("kube_config")
 	teleportHost = viper.GetString("teleport_host")
 
-	absPath := cleanPath(kubeConfig)
+	absPath := cleanPath(kubeConfigFile)
 
 	kubeconfigBytes, err = os.ReadFile(absPath)
 	if err != nil {
-		fmt.Printf("Error reading kubeconfig file: %s", err.Error())
+		fmt.Printf("Error reading kubeconfig file: %s\n", err.Error())
+		os.Exit(1)
+	}
+
+	kubeConfig, err := clientcmd.Load(kubeconfigBytes)
+	if err != nil {
+		fmt.Printf("Error loading kubeconfig file: %s\n", err.Error())
+		os.Exit(1)
+	}
+	// Set the current context to the one specified in the config
+	kubeConfig.CurrentContext = kubeContext
+
+	restConfig, err = clientcmd.NewDefaultClientConfig(*kubeConfig, &clientcmd.ConfigOverrides{}).ClientConfig()
+	if err != nil {
+		fmt.Println(err.Error())
 		os.Exit(1)
 	}
 
@@ -180,7 +205,7 @@ var versionCmd = &cobra.Command{
 	Short: "Print the version number of upctl",
 	Long:  `Print the version number of upctl`,
 	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Println("v0.3.0")
+		fmt.Println("v0.4.0")
 	},
 }
 
