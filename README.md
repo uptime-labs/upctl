@@ -28,6 +28,7 @@ local-stack is a collection of tools that help develop and test UptimeLabs on a 
     - [5.2.2 Import keycloak realm](#522-import-keycloak-realm)
   - [5.3 Install rest of the packages](#53-install-rest-of-the-packages)
   - [5.4 Removing packages](#54-removing-packages)
+- [6. Troubleshooting](#6-troubleshooting)
 
 
 ## Before you begin
@@ -226,4 +227,12 @@ $ upctl install --all
 
 ```bash
 $ upctl remove <package name>
+```
+
+## 6. Troubleshooting
+
+6.1 If mysql installation fails after a previous installation, make sure to delete the mysql persistent volume claim before installing again.
+
+```bash
+kubectl delete pvc data-mysql-0 -n mysql
 ```
