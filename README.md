@@ -64,8 +64,7 @@ Make sure to download the correct version for your operating system.
 #### Linux
 
 ```bash
-$ chmod +x upctl_0.3.0_linux_amd64
-$ sudo mv upctl_0.3.0_linux_amd64 /usr/local/bin/upctl
+$ sudo install -o root -g root -m 0755 upctl_0.3.0_linux_amd64 /usr/local/bin/upctl
 ```
 
 #### MacOS
