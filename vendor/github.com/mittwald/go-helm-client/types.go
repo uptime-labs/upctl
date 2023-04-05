@@ -4,16 +4,16 @@ import (
 	"io"
 	"time"
 
-	"helm.sh/helm/v3/pkg/postrender"
-
-	"helm.sh/helm/v3/pkg/getter"
 	"k8s.io/client-go/rest"
 
 	"helm.sh/helm/v3/pkg/action"
 	"helm.sh/helm/v3/pkg/chartutil"
 	"helm.sh/helm/v3/pkg/cli"
-	"helm.sh/helm/v3/pkg/cli/values"
+	"helm.sh/helm/v3/pkg/getter"
+	"helm.sh/helm/v3/pkg/postrender"
 	"helm.sh/helm/v3/pkg/repo"
+
+	"github.com/mittwald/go-helm-client/values"
 )
 
 // Type Guard asserting that HelmClient satisfies the HelmClient interface.
@@ -98,8 +98,6 @@ type HelmTemplateOptions struct {
 	APIVersions chartutil.VersionSet
 }
 
-//go:generate controller-gen object paths="./..." output:dir=.
-
 // ChartSpec defines the values of a helm chart
 // +kubebuilder:object:generate:=true
 type ChartSpec struct {
@@ -182,4 +180,10 @@ type ChartSpec struct {
 	// DryRun indicates whether to perform a dry run.
 	// +optional
 	DryRun bool `json:"dryRun,omitempty"`
+	// Description specifies a custom description for the uninstalled release
+	// +optional
+	Description string `json:"description,omitempty"`
+	// KeepHistory indicates whether to retain or purge the release history during uninstall
+	// +optional
+	KeepHistory bool `json:"keepHistory,omitempty"`
 }

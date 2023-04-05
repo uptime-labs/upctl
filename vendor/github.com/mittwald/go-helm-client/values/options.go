@@ -13,11 +13,17 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+/*
+Copied from https://github.com/helm/helm/blob/eea2f27babb0fddd9fb1907f4d8531c8f5c73c66/pkg/cli/values/options.go
+Changes:
+- Add generator comments
+- Export MergeMaps
+*/
 
 package values
 
 import (
-	"io/ioutil"
+	"io"
 	"net/url"
 	"os"
 	"strings"
@@ -30,6 +36,7 @@ import (
 )
 
 // Options captures the different ways to specify values
+// +kubebuilder:object:generate:=true
 type Options struct {
 	ValueFiles   []string // -f/--values
 	StringValues []string // --set-string
@@ -56,7 +63,7 @@ func (opts *Options) MergeValues(p getter.Providers) (map[string]interface{}, er
 			return nil, errors.Wrapf(err, "failed to parse %s", filePath)
 		}
 		// Merge with the previous map
-		base = mergeMaps(base, currentMap)
+		base = MergeMaps(base, currentMap)
 	}
 
 	// User specified a value via --set-json
@@ -97,7 +104,7 @@ func (opts *Options) MergeValues(p getter.Providers) (map[string]interface{}, er
 	return base, nil
 }
 
-func mergeMaps(a, b map[string]interface{}) map[string]interface{} {
+func MergeMaps(a, b map[string]interface{}) map[string]interface{} {
 	out := make(map[string]interface{}, len(a))
 	for k, v := range a {
 		out[k] = v
@@ -106,7 +113,7 @@ func mergeMaps(a, b map[string]interface{}) map[string]interface{} {
 		if v, ok := v.(map[string]interface{}); ok {
 			if bv, ok := out[k]; ok {
 				if bv, ok := bv.(map[string]interface{}); ok {
-					out[k] = mergeMaps(bv, v)
+					out[k] = MergeMaps(bv, v)
 					continue
 				}
 			}
@@ -119,7 +126,7 @@ func mergeMaps(a, b map[string]interface{}) map[string]interface{} {
 // readFile load a file from stdin, the local directory, or a remote file with a url.
 func readFile(filePath string, p getter.Providers) ([]byte, error) {
 	if strings.TrimSpace(filePath) == "-" {
-		return ioutil.ReadAll(os.Stdin)
+		return io.ReadAll(os.Stdin)
 	}
 	u, err := url.Parse(filePath)
 	if err != nil {
@@ -129,7 +136,7 @@ func readFile(filePath string, p getter.Providers) ([]byte, error) {
 	// FIXME: maybe someone handle other protocols like ftp.
 	g, err := p.ByScheme(u.Scheme)
 	if err != nil {
-		return ioutil.ReadFile(filePath)
+		return os.ReadFile(filePath)
 	}
 	data, err := g.Get(filePath, getter.WithURL(filePath))
 	if err != nil {

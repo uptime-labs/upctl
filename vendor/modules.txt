@@ -298,9 +298,10 @@ github.com/mitchellh/mapstructure
 # github.com/mitchellh/reflectwalk v1.0.2
 ## explicit
 github.com/mitchellh/reflectwalk
-# github.com/mittwald/go-helm-client v0.12.0
+# github.com/mittwald/go-helm-client v0.12.1
 ## explicit; go 1.20
 github.com/mittwald/go-helm-client
+github.com/mittwald/go-helm-client/values
 # github.com/moby/locker v1.0.1
 ## explicit; go 1.13
 github.com/moby/locker
@@ -570,7 +571,6 @@ helm.sh/helm/v3/pkg/chart
 helm.sh/helm/v3/pkg/chart/loader
 helm.sh/helm/v3/pkg/chartutil
 helm.sh/helm/v3/pkg/cli
-helm.sh/helm/v3/pkg/cli/values
 helm.sh/helm/v3/pkg/downloader
 helm.sh/helm/v3/pkg/engine
 helm.sh/helm/v3/pkg/getter
