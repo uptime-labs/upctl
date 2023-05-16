@@ -34,7 +34,7 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-go-
 
-      - uses: sigstore/cosign-installer@v3.0.2         # installs cosign
+      - uses: sigstore/cosign-installer@v3.0.4         # installs cosign
 
       - uses: goreleaser/goreleaser-action@v4          # run goreleaser
         with:
