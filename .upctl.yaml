@@ -26,6 +26,8 @@ repositories:
     url: https://charts.shared.uptimelabs.io/
     username: metropolis
     password: <base64 encoded password>
+  - name: grafana
+    url: https://grafana.github.io/helm-charts
 
 # packages is a list of Helm packages to install. The name is the name of the
 # package, and the repo is the name of the repository to install the package
@@ -59,6 +61,18 @@ packages:
     repo: uptimelabs/uptimelabs-middleware
     namespace: uptimelabs
     override: middleware.yaml
+  - name: rabbitmq-operator
+    repo: bitnami/rabbitmq-cluster-operator
+    namespace: rabbitmq-system
+    override: rabbitmq-operator.yaml
+  - name: uptimelabs-messaging
+    repo: uptimelabs/uptimelabs-messaging
+    namespace: rabbitmq
+    override: messaging.yaml
+  - name: loki
+    repo: grafana/loki
+    namespace: loki
+    override: loki.yaml
   #- name: superset
   #  repo: superset/superset
   #  namespace: superset
@@ -106,6 +120,8 @@ docker_config:
     - superset
     - metallb-system
     - default
+    - rabbitmq
+    - rabbitmq-system
 
 # mysql is the configuration for the MySQL database.
 # The host is the address of the MySQL server.
