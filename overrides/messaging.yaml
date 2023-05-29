@@ -3,6 +3,9 @@ dnsDomain: dev.uptimelabs.io
 messaging:
   version: ">=0.2.2"
 
+localStack:
+  enable: true
+
 public:
   replicaCount: 1
   persistence:
