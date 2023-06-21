@@ -6,6 +6,8 @@ postgresql:
 
 service:
   type: LoadBalancer
+  # If you change httpPort then you need to reflect the change in the KEYCLOAK_BASE_URL value in the
+  # uptimelabs-env configMap as well.
   httpPort: 8085
   httpsPort: 8445
 
