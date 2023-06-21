@@ -19,8 +19,6 @@ extraInitContainers: |
       - |
         echo "Downloading keycloak-event-listener-mqtt extension"
         wget -O /deployments/event-listener-mqtt-jar-with-dependencies.jar "https://github.com/softwarefactory-project/keycloak-event-listener-mqtt/releases/download/15.0.2/event-listener-mqtt-15.0.2-jar-with-dependencies.jar"
-        echo "Downloading keycloak-scim"
-        wget -O /deployments/keycloak-scim.jar "https://github.com/gamunu/dotfiles/releases/download/v0.1.0/keycloak-scim-1.0-SNAPSHOT-all.1.jar"
     volumeMounts:
       - name: keycloak-extensions
         mountPath: /deployments
@@ -62,6 +60,14 @@ extraEnv: |
     value: admin
   - name: KEYCLOAK_PASSWORD
     value: uptimelabs
+  - name: MQTT_HOST_URI
+    value: tcp://rabbitmq-public.rabbitmq.svc.cluster.local:1883
+  - name: MQTT_TOPIC
+    value: keycloak/events
+  - name: MQTT_USERNAME
+    value: keycloak
+  - name: MQTT_PASSWORD
+    value: keycloak
 
 extraVolumes: |
   - name: keycloak-extensions

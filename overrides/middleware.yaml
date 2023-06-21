@@ -6,7 +6,7 @@ image:
 imagePullSecrets:
   - name: regcred
 
-replicaCount: 2
+replicaCount: 1
 
 env:
   ENV_VARIABLE_NAME: production
@@ -19,3 +19,17 @@ envFrom:
       name: uptimelabs-envs
 #  - secretRef:
 #      name: keycloak-middleware-client
+
+envValueFrom:
+  MQTT_USERNAME:
+    secretKeyRef:
+      name: middleware-client-credentials
+      key: username
+  MQTT_PASSWORD:
+    secretKeyRef:
+      name: middleware-client-credentials
+      key: password
+  RABBIT_MQ_URI:
+    secretKeyRef:
+      name: middleware-client-credentials
+      key: RABBIT_MQ_URI
