@@ -78,6 +78,11 @@ $ sudo mv upctl_0.3.0_darwin_amd64 /usr/local/bin/upctl
 ### 1.2 Create a configuration file
 
 - Copy the sample configuration file `.upctl.yaml` from the root of the project to your home directory.
+
+```bash
+$ cp .upctl.yaml ~/.upctl.yaml
+```
+
 - Update the configuration file for your environment.
 
 Obtain helm UptimeLabs private repository credentials from the UptimeLabs team and add them to the `.upctl.yaml` file.
