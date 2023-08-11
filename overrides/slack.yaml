@@ -1,0 +1,18 @@
+replicaCount: 1
+
+keda:
+  enabled: false
+
+env:
+  LOG_LEVEL: DEBUG
+
+handler:
+  ingress:
+    enabled: false
+
+serviceAccount:
+  create: true
+  name: slack
+
+imagePullSecrets:
+  - name: regcred

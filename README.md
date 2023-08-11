@@ -65,14 +65,14 @@ Make sure to download the correct version for your operating system.
 #### Linux
 
 ```bash
-$ sudo install -o root -g root -m 0755 upctl_0.3.0_linux_amd64 /usr/local/bin/upctl
+$ sudo install -o root -g root -m 0755 upctl_0.6.0_linux_amd64 /usr/local/bin/upctl
 ```
 
 #### MacOS
 
 ```bash
-$ chmod +x upctl_0.3.0_darwin_amd64
-$ sudo mv upctl_0.3.0_darwin_amd64 /usr/local/bin/upctl
+$ chmod +x upctl_0.6.0_darwin_amd64
+$ sudo mv upctl_0.6.0_darwin_amd64 /usr/local/bin/upctl
 ```
 
 ### 1.2 Create a configuration file
@@ -98,7 +98,8 @@ repositories:
 ### 1.3 Copy overrides directory to your home directory
 
 ```bash
-$ cp -r overrides ~/.upctl
+$ mkdir ~/.upctl
+$ cp -R overrides ~/.upctl/
 ```
 
 update the overrides property in the `.upctl.yaml` file to point to the overrides directory in your home directory.
@@ -241,3 +242,15 @@ $ upctl remove <package name>
 ```bash
 kubectl delete pvc data-mysql-0 -n mysql
 ```
+
+6.2 If you are seeing the following error when pulling images from ECR, make sure to configure the ECR credentials.
+
+```log
+Failed to pull image "300954903401.dkr.ecr.eu-west-1.amazonaws.com/uptimelabs-slack-events:v0.2.38 ││ ": rpc error: code = Unknown desc = Error response from daemon: failed to resolve reference "300954903401.dkr.ecr.eu-west-1.amazonaws.com/uptimelabs-slack-eve ││ nts:v0.2.38": pulling from host 300954903401.dkr.ecr.eu-west-1.amazonaws.com failed with status code [manifests v0.2.38]: 401 Unauthorized 
+```
+
+```bash
+$ upctl config docker
+```
+
+if that doesn't resolve the issue, check if you have configured the image pull secrets for deployments.
