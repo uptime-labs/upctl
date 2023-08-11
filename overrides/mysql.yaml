@@ -6,10 +6,17 @@ auth:
   password: uptimelabs
 
 primary:
+  readinessProbe:
+    enabled: false
+  livenessProbe:
+    enabled: false
   service:
     type: LoadBalancer
     ports:
       mysql: 3307
+
+secondary:
+  replicaCount: 0
 
 initdbScripts:
   createdb.sql: |-
