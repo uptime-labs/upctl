@@ -4,11 +4,13 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
+	"os"
+	"os/exec"
+
 	"github.com/spf13/cobra"
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"os"
 )
 
 /**
@@ -69,6 +71,22 @@ func configDocker() {
 	var password string
 
 	if dockerConfig.UseTeleport {
+		progress.Restart()
+		//lookup the teleport client path
+		path, err := exec.LookPath("tsh")
+		if err != nil {
+			fmt.Println("Error finding tsh:", err)
+			progress.Stop()
+			os.Exit(1)
+		}
+
+		fmt.Printf("Authenticating with AWS App: %s...\n", dockerConfig.AWSApp)
+		if err := ExecuteCommand(path, "apps", "login", dockerConfig.AWSApp, "--aws-role", teleportConfig.AWSRole); err != nil {
+			fmt.Println("Error authenticating with AWS:", err)
+			progress.Stop()
+			os.Exit(2)
+		}
+
 		// Execute the tsh aws ecr login command
 		password, err = tshAwsEcrLogin()
 		if err != nil {

@@ -50,7 +50,7 @@ var importDBCmd = &cobra.Command{
 			fmt.Println("Downloading database...")
 			fmt.Println(mysqlConfig.S3Bucket, mysqlConfig.S3Key, mysqlConfig.DBFile, mysqlConfig.S3Region)
 
-			if err := ExecuteCommand("tsh", "aws", "s3", "cp",
+			if err := ExecuteCommand("tsh", "aws", "--app", teleportConfig.AWSApp, "s3", "cp",
 				fmt.Sprintf("s3://%s/%s", mysqlConfig.S3Bucket, mysqlConfig.S3Key), mysqlConfig.DBFile,
 				"--region", mysqlConfig.S3Region); err != nil {
 				fmt.Println("Error downloading database:", err)

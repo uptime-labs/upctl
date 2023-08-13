@@ -2,10 +2,11 @@ package cmd
 
 import (
 	"fmt"
-	helm "github.com/mittwald/go-helm-client"
-	"k8s.io/client-go/tools/clientcmd"
 	"os"
 	"time"
+
+	helm "github.com/mittwald/go-helm-client"
+	"k8s.io/client-go/tools/clientcmd"
 
 	"github.com/briandowns/spinner"
 	"github.com/spf13/cobra"
@@ -58,6 +59,7 @@ type DockerConfig struct {
 	Username    string   `mapstructure:"username"`
 	Password    string   `mapstructure:"password"`
 	UseTeleport bool     `mapstructure:"use_teleport"`
+	AWSApp      string   `mapstructure:"aws_app"`
 }
 
 var (

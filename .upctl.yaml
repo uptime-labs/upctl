@@ -105,17 +105,11 @@ docker_config:
   name: regcred
   registry: 300954903401.dkr.ecr.eu-west-1.amazonaws.com
   username: AWS
+  aws_app: awsconsole-shared
   #password: ""
   use_teleport: true
   namespaces:
     - uptimelabs
-    - mysql
-    - keycloak
-    - superset
-    - metallb-system
-    - default
-    - rabbitmq
-    - rabbitmq-system
 
 # mysql is the configuration for the MySQL database.
 # The host is the address of the MySQL server.

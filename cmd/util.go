@@ -5,16 +5,17 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	helm "github.com/mittwald/go-helm-client"
-	v1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/tools/clientcmd"
 	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
+
+	helm "github.com/mittwald/go-helm-client"
+	v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/tools/clientcmd"
 )
 
 // cleanPath cleans up a path and expands ~ to the user's home directory
@@ -142,7 +143,7 @@ func createNamespace(ctx context.Context, name string) error {
 
 // tshAwsEcrLogin
 func tshAwsEcrLogin() (string, error) {
-	cmd := exec.Command("tsh", "aws", "ecr", "get-login-password", "--region", "eu-west-1")
+	cmd := exec.Command("tsh", "aws", "--app", dockerConfig.AWSApp, "ecr", "get-login-password", "--region", "eu-west-1")
 
 	var outBuf, errBuf bytes.Buffer
 	cmd.Stdout = &outBuf
