@@ -35,19 +35,13 @@ local-stack is a collection of tools that help develop and test UptimeLabs on a 
 
 ### Prerequisites
 
-Kubernetes in Docker (kind) is a tool for running local Kubernetes clusters using Docker container "nodes".
-Install Docker on your local machine. You will need Docker in order to use kind.
-
-- Docker Desktop
+- [Docker Desktop](https://www.docker.com/products/docker-desktop/)
 - kubectl
 - mysql-client
 - awscli
-- WSL2 - if you are using Windows
+- WSL2 - must on Windows
 
 Read more about installing the dependencies [here](docs/dependencies.md)
-
-### Optional dependencies
-- kind v0.17.0 or later - We recommend using `Kind` if you are on GNU-Linux.
 
 ---
 ## 1. Installation
@@ -66,23 +60,23 @@ Make sure to download the correct version for your operating system.
 
 ```bash
 $ cd ~/Downloads
-$ sudo install -o root -g root -m 0755 upctl_0.7.0_linux_amd64 /usr/local/bin/upctl
+$ sudo install -o root -g root -m 0755 upctl_0.8.0_linux_amd64 /usr/local/bin/upctl
 ```
 
 #### MacOS
 
 ```bash
 $ cd ~/Downloads
-$ chmod +x upctl_0.7.0_darwin_amd64
-$ sudo mv upctl_0.7.0_darwin_amd64 /usr/local/bin/upctl
+$ chmod +x upctl_0.8.0_darwin_amd64
+$ sudo mv upctl_0.8.0_darwin_amd64 /usr/local/bin/upctl
 ```
 
 ### 1.2 Create a configuration file
 
-- Copy the sample configuration file `.upctl.yaml` from the root of the project to your home directory.
+- Copy the sample configuration file `.upctl.yaml` from the config directory of local-stack to your home directory.
 
 ```bash
-$ cp .upctl.yaml ~/.upctl.yaml
+$ cp config/upctl.yaml ~/.upctl.yaml
 ```
 
 - Update the configuration file for your environment.
@@ -101,7 +95,7 @@ repositories:
 
 ```bash
 $ mkdir ~/.upctl
-$ cp -R overrides ~/.upctl/
+$ cp -R config/overrides ~/.upctl/
 ```
 
 update the overrides property in the `.upctl.yaml` file to point to the overrides directory in your home directory.
@@ -130,16 +124,6 @@ This command will create a local Kubernetes cluster using Docker containers as t
 
 <img src="./docs/docker.png" width="500"/>
 
-### 2.3 Install metallb and configure for kind cluster (skip if you are using docker desktop)
-
-- Read more about metallb [here](https://metallb.universe.tf/)
-- Read more about network configuration with metallb [here](docs/network.md)
-
-```bash
-$ upctl install metallb
-$ kubeclt apply -f config/metallb-config.yaml
-```
----
 ## 3. Installing Packages and Services
 
 We use helm as a package manager to install packages into the Kubernetes clusters. To simplify the management of repositories and the packages the local-stack includes a set of scripts and configuration files.
