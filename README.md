@@ -65,14 +65,16 @@ Make sure to download the correct version for your operating system.
 #### Linux
 
 ```bash
-$ sudo install -o root -g root -m 0755 upctl_0.6.0_linux_amd64 /usr/local/bin/upctl
+$ cd ~/Downloads
+$ sudo install -o root -g root -m 0755 upctl_0.7.0_linux_amd64 /usr/local/bin/upctl
 ```
 
 #### MacOS
 
 ```bash
-$ chmod +x upctl_0.6.0_darwin_amd64
-$ sudo mv upctl_0.6.0_darwin_amd64 /usr/local/bin/upctl
+$ cd ~/Downloads
+$ chmod +x upctl_0.7.0_darwin_amd64
+$ sudo mv upctl_0.7.0_darwin_amd64 /usr/local/bin/upctl
 ```
 
 ### 1.2 Create a configuration file
