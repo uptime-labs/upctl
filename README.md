@@ -5,29 +5,25 @@ local-stack is a collection of tools that help develop and test UptimeLabs on a 
 - [Local Development Stack](#local-development-stack)
 - [Before you begin](#before-you-begin)
   - [Prerequisites](#prerequisites)
-  - [Optional dependencies](#optional-dependencies)
 - [1. Installation](#1-installation)
   - [1.1 Download the latest release](#11-download-the-latest-release)
     - [Linux](#linux)
     - [MacOS](#macos)
-  - [1.2 Create a configuration file](#12-create-a-configuration-file)
-  - [1.3 Copy overrides directory to your home directory](#13-copy-overrides-directory-to-your-home-directory)
-  - [1.4 Login to the teleport server](#14-login-to-the-teleport-server)
-- [2. Creating a local Kubernetes cluster](#2-creating-a-local-kubernetes-cluster)
-  - [2.1 Kind cluster - if you have docker desktop, skip to step 1.2](#21-kind-cluster---if-you-have-docker-desktop-skip-to-step-12)
-  - [2.2 Enable Kubernetes cluster in Docker Desktop](#22-enable-kubernetes-cluster-in-docker-desktop)
-  - [2.3 Install metallb and configure for kind cluster (skip if you are using docker desktop)](#23-install-metallb-and-configure-for-kind-cluster-skip-if-you-are-using-docker-desktop)
-- [3. Installing Packages and Services](#3-installing-packages-and-services)
+  - [1.2 clone the repository](#12-clone-the-repository)
+  - [1.3 Create a configuration file](#13-create-a-configuration-file)
+  - [1.4 Copy overrides directory to your home directory](#14-copy-overrides-directory-to-your-home-directory)
+  - [1.5 Login to the teleport server](#15-login-to-the-teleport-server)
+- [2. Enable Kubernetes cluster in Docker Desktop](#2-enable-kubernetes-cluster-in-docker-desktop)
+- [3. Quick Intro to repositories and packages](#3-quick-intro-to-repositories-and-packages)
 - [4. Configuration](#4-configuration)
   - [4.1 Configure helm repositories](#41-configure-helm-repositories)
   - [4.2 Configure ECR credentials](#42-configure-ecr-credentials)
 - [5. Setting up the local environment](#5-setting-up-the-local-environment)
   - [5.1 Install uptimelabs configuration package](#51-install-uptimelabs-configuration-package)
-  - [5.2 Install mysql, keycloak and mosquitto](#52-install-mysql-keycloak-and-mosquitto)
-    - [5.2.1 Import mysql database](#521-import-mysql-database)
+  - [5.2 Install mysql, keycloak and rabbitmq](#52-install-mysql-keycloak-and-rabbitmq)
+    - [5.2.1 Import uptimelabs mysql database](#521-import-uptimelabs-mysql-database)
     - [5.2.2 Import keycloak realm](#522-import-keycloak-realm)
-  - [5.3 Install rest of the packages](#53-install-rest-of-the-packages)
-  - [5.4 Removing packages](#54-removing-packages)
+  - [5.3 Removing packages](#53-removing-packages)
 - [6. Troubleshooting](#6-troubleshooting)
 
 
@@ -56,6 +52,7 @@ Make sure to download the correct version for your operating system.
  - `upctl_0.x.x_darwin_amd64` for intel-based macOS
  - `upctl_0.x.x_darwin_arm64` for Arm-based macOS
 
+
 #### Linux
 
 ```bash
@@ -71,7 +68,13 @@ $ chmod +x upctl_0.8.0_darwin_amd64
 $ sudo mv upctl_0.8.0_darwin_amd64 /usr/local/bin/upctl
 ```
 
-### 1.2 Create a configuration file
+### 1.2 clone the repository
+
+```bash
+$ git clone --depth 1 git@github.com:uptime-labs/local-stack.git
+```
+
+### 1.3 Create a configuration file
 
 - Copy the sample configuration file `.upctl.yaml` from the config directory of local-stack to your home directory.
 
@@ -91,7 +94,7 @@ repositories:
     password: <password>
 ```
 
-### 1.3 Copy overrides directory to your home directory
+### 1.4 Copy overrides directory to your home directory
 
 ```bash
 $ mkdir ~/.upctl
@@ -100,7 +103,7 @@ $ cp -R config/overrides ~/.upctl/
 
 update the overrides property in the `.upctl.yaml` file to point to the overrides directory in your home directory.
 
-### 1.4 Login to the teleport server
+### 1.5 Login to the teleport server
 
 ```bash
 $ tsh login --proxy=teleport.uptimelabs.io:443
@@ -108,31 +111,21 @@ $ tsh login --proxy=teleport.uptimelabs.io:443
 
 ---
 
-## 2. Creating a local Kubernetes cluster
-
-### 2.1 Kind cluster - if you have docker desktop, skip to step 1.2
-
-```bash
-$ kind create cluster --cluster config/kind.config.yaml
-```
-
-This command will create a local Kubernetes cluster using Docker containers as the nodes. You can then use kubectl, the Kubernetes command-line interface, to deploy and manage applications on the cluster.
-
-### 2.2 Enable Kubernetes cluster in Docker Desktop
+## 2. Enable Kubernetes cluster in Docker Desktop
 
 - Open up the settings screen and Navigate to the Kubernetes tab, then check Enable Kubernetes:
 
 <img src="./docs/docker.png" width="500"/>
 
-## 3. Installing Packages and Services
+## 3. Quick Intro to repositories and packages
 
-We use helm as a package manager to install packages into the Kubernetes clusters. To simplify the management of repositories and the packages the local-stack includes a set of scripts and configuration files.
+We use helm as a package manager to install packages into the Kubernetes clusters. To simplify the management of repositories and the packages the local-stack include a cli and configuration files.
 
-- **upctl.yaml**
+- **.upctl.yaml**
 
   - `repositories`
 
-    This fie contains a list of required helm repositories to pull helm packages. When you are configuring repositories you can obtain the repository URL from the maintainer usualy from (https://artifacthub.io/) and give any preferred name for the name feild.
+    This property contains a list of required helm repositories to pull helm packages. When you are configuring repositories you can obtain the repository URL from the maintainer usualy from (https://artifacthub.io/) and give any preferred name for the name feild.
     Following is an example of configuring the superset repository, you can give any unique `name` to the name property.
 
     ```yaml
@@ -142,14 +135,14 @@ We use helm as a package manager to install packages into the Kubernetes cluster
 
   - `packages`
 
-    This file contains all the packages that required to be installed into the local Kubernetes cluster. To define a installable package there are several properties.
+    This perity contains all the packages that can be configured to be installed into the local Kubernetes cluster. To define a installable package there are several properties.
 
     - `name` - The name of helm package. This will be used as an installation name and the name will be prepended to the Kubernetes resources created by this helm package. You can give any preferred name for this.
     - `repo` - The combination of repo and package names in format `<repo name>/<package name>`. The package name as defined by the helm package maintainer. Repository name is the name given in the `repositories.yaml`.
     - `namespace` - Namespace of the package resources should install into.
     - `override` - Helm value files to override default helm package values.
 
-    Values for each package can be modified using the overrides config files located in the `<root>/overrides` directory.
+    Values for each package can be modified using the overrides config files located in the `<configuration-root>/overrides` directory.
     
     ```yaml
     - name: mosquitto # package name
@@ -191,15 +184,23 @@ This package contains the configuration for the uptimelabs applications. This pa
 $ upctl install uptimelabs-envs
 ```
 
-### 5.2 Install mysql, keycloak and mosquitto
+### 5.2 Install mysql, keycloak and rabbitmq
+
+Install keycloak and mysql packages. This will install the keycloak and mysql into the local Kubernetes cluster.
 
 ```bash
 $ upctl install mysql
 $ upctl install keycloak
-$ upctl install mosquitto
 ```
 
-#### 5.2.1 Import mysql database
+Install rabbitmq-operator and uptimelabs-messaging packages. This will install the rabbitmq-operator and rabbitmq cluster into the local Kubernetes cluster.
+
+```bash
+$ upctl install rabbitmq-operator
+$ upctl install uptimelabs-messaging
+```
+
+#### 5.2.1 Import uptimelabs mysql database
 
 ```bash
 $ upctl import-db
@@ -207,15 +208,11 @@ $ upctl import-db
 
 #### 5.2.2 Import keycloak realm
 
-To import the keycloak realm navigate to the keycloak admin console and import the realm from the `config/tenants-realm.json` file.
+- To import the keycloak realm navigate to the keycloak admin console [http://localhost:8085](http://localhost:8085)
+- Use `admin` and `uptimelabs` as the username and password.
+- Click on the `Add realm` button and select the `config/tenants-realm.json` file to import and click on the `Create` button.
 
-### 5.3 Install rest of the packages
-
-```bash
-$ upctl install --all
-```
-
-### 5.4 Removing packages
+### 5.3 Removing packages
 
 ```bash
 $ upctl remove <package name>
