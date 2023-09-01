@@ -21,8 +21,9 @@ local-stack is a collection of tools that help develop and test UptimeLabs on a 
 - [5. Setting up the local environment](#5-setting-up-the-local-environment)
   - [5.1 Install uptimelabs configuration package](#51-install-uptimelabs-configuration-package)
   - [5.2 Install mysql, keycloak and rabbitmq](#52-install-mysql-keycloak-and-rabbitmq)
-    - [5.2.1 Import uptimelabs mysql database](#521-import-uptimelabs-mysql-database)
-    - [5.2.2 Import keycloak realm](#522-import-keycloak-realm)
+    - [5.2.1 Get rabbitmq secrets](#521-get-rabbitmq-secrets)
+    - [5.2.2 Import uptimelabs mysql database](#522-import-uptimelabs-mysql-database)
+    - [5.2.3 Import keycloak realm](#523-import-keycloak-realm)
   - [5.3 Removing packages](#53-removing-packages)
 - [6. Troubleshooting](#6-troubleshooting)
 
@@ -200,13 +201,21 @@ $ upctl install rabbitmq-operator
 $ upctl install uptimelabs-messaging
 ```
 
-#### 5.2.1 Import uptimelabs mysql database
+#### 5.2.1 Get rabbitmq secrets
+
+```bash
+$ kubectl get secret rabbitmq-public-default-user -n rabbitmq --context=docker-desktop -o jsonpath='{.data.username}' | base64 -d && echo
+
+$ kubectl get secret rabbitmq-public-default-user -n rabbitmq --context=docker-desktop -o jsonpath='{.data.password}' | base64 -d && echo
+```
+
+#### 5.2.2 Import uptimelabs mysql database
 
 ```bash
 $ upctl import-db
 ```
 
-#### 5.2.2 Import keycloak realm
+#### 5.2.3 Import keycloak realm
 
 - To import the keycloak realm navigate to the keycloak admin console [http://localhost:8085](http://localhost:8085)
 - Use `admin` and `uptimelabs` as the username and password.
