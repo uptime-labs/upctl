@@ -36,7 +36,7 @@ jobs:
 
       - uses: sigstore/cosign-installer@v3.3.0         # installs cosign
 
-      - uses: goreleaser/goreleaser-action@v4          # run goreleaser
+      - uses: goreleaser/goreleaser-action@v5          # run goreleaser
         with:
           version: latest
           args: release --rm-dist
