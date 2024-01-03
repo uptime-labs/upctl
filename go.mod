@@ -5,7 +5,7 @@ go 1.19
 require (
 	github.com/briandowns/spinner v1.23.0
 	github.com/mittwald/go-helm-client v0.12.5
-	github.com/spf13/cobra v1.7.0
+	github.com/spf13/cobra v1.8.0
 	github.com/spf13/viper v1.16.0
 	helm.sh/helm/v3 v3.13.2
 	k8s.io/api v0.28.2
