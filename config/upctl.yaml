@@ -12,8 +12,6 @@
 repositories:
   - name: superset
     url: https://apache.github.io/superset
-  - name: bitnami
-    url: https://charts.bitnami.com/bitnami
   - name: codecentric
     url: https://codecentric.github.io/helm-charts
   - name: uptimelabs
@@ -29,29 +27,30 @@ repositories:
 # namespace does not exist, it will be created. If the namespace is not
 # specified, the package will be installed into the default namespace.
 packages:
-  - name: uptimelabs-envs
-    repo: uptimelabs-envs
-    namespace: uptimelabs
   - name: mysql
-    repo: bitnami/mysql
+    repo: oci://registry-1.docker.io/bitnamicharts/mysql
     namespace: mysql
     override: mysql.yaml
+  - name: loki
+    repo: grafana/loki
+    namespace: loki
+    override: loki.yaml
   - name: keycloak
     repo: codecentric/keycloakx
     namespace: keycloak
     override: keycloak.yaml
   - name: rabbitmq-operator
-    repo: bitnami/rabbitmq-cluster-operator
+    repo: oci://registry-1.docker.io/bitnamicharts/rabbitmq-cluster-operator
     namespace: rabbitmq-system
     override: rabbitmq-operator.yaml
+
+  - name: uptimelabs-envs
+    repo: uptimelabs/uptimelabs-envs
+    namespace: uptimelabs
   - name: uptimelabs-messaging
     repo: uptimelabs/uptimelabs-messaging
     namespace: rabbitmq
     override: messaging.yaml
-  - name: loki
-    repo: grafana/loki
-    namespace: loki
-    override: loki.yaml
   - name: uptimelabs-middleware
     repo: uptimelabs/uptimelabs-middleware
     namespace: uptimelabs
