@@ -14,12 +14,8 @@ repositories:
     url: https://apache.github.io/superset
   - name: bitnami
     url: https://charts.bitnami.com/bitnami
-  - name: node-red
-    url: https://k8s-at-home.com/charts/
   - name: codecentric
     url: https://codecentric.github.io/helm-charts
-  - name: metallb
-    url: https://metallb.github.io/metallb
   - name: uptimelabs
     url: https://charts.shared.uptimelabs.io/
     username: metropolis
@@ -34,14 +30,14 @@ repositories:
 # specified, the package will be installed into the default namespace.
 packages:
   - name: uptimelabs-envs
-    repo: uptimelabs/uptimelabs-envs
+    repo: uptimelabs-envs
     namespace: uptimelabs
   - name: mysql
     repo: bitnami/mysql
     namespace: mysql
     override: mysql.yaml
   - name: keycloak
-    repo: codecentric/keycloak
+    repo: codecentric/keycloakx
     namespace: keycloak
     override: keycloak.yaml
   - name: rabbitmq-operator

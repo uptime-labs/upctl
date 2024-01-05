@@ -1,10 +1,12 @@
-image:
-  tag: "19.0.3-legacy"
+database:
+  vendor: mysql
+  hostname: mysql.mysql.svc.cluster.local
+  port: 3307
+  username: 'uptimelabs'
+  password: 'uptimelabs'
+  database: keycloak
 
-auth:
-  adminPassword: uptimelabs
-
-postgresql:
+serviceMonitor:
   enabled: false
 
 service:
@@ -14,75 +16,28 @@ service:
   httpPort: 8085
   httpsPort: 8445
 
-extraInitContainers: |
-  - name: download-extensions
-    image: busybox:1.34.1
-    command:
-      - "sh"
-    args:
-      - -c
-      - |
-        echo "Downloading keycloak-event-listener-mqtt extension"
-        wget -O /deployments/event-listener-mqtt-jar-with-dependencies.jar "https://github.com/softwarefactory-project/keycloak-event-listener-mqtt/releases/download/15.0.2/event-listener-mqtt-15.0.2-jar-with-dependencies.jar"
-    volumeMounts:
-      - name: keycloak-extensions
-        mountPath: /deployments
+command:
+  - "/opt/keycloak/bin/kc.sh"
+  - "start"
+  - "--http-enabled=true"
+  - "--http-port=8080"
+  - "--hostname-strict=false"
+  - "--hostname-strict-https=false"
 
 #checkov:skip=CKV_SECRET_6:"Base64 High Entropy String"
 extraEnv: |
-  - name: KUBERNETES_NAMESPACE
-    valueFrom:
-      fieldRef:
-        apiVersion: v1
-        fieldPath: metadata.namespace
   - name: CACHE_OWNERS_COUNT
     value: "2"
   - name: CACHE_OWNERS_AUTH_SESSIONS_COUNT
     value: "2"
   - name: LDAPTLS_REQCERT
     value: "never"
-  - name: KEYCLOAK_STATISTICS
-    value: all
+  - name: JAVA_OPTS_APPEND
+    value: >-
+      -Djgroups.dns.query=keycloakx-headless
+  - name: KEYCLOAK_ADMIN
+    value: admin
+  - name: KEYCLOAK_ADMIN_PASSWORD
+    value: uptimelabs
   - name: PROXY_ADDRESS_FORWARDING
     value: "true"
-  - name: JGROUPS_DISCOVERY_PROTOCOL
-    value: "dns.DNS_PING"
-  - name: JGROUPS_DISCOVERY_PROPERTIES
-    value: "dns_query=keycloak-headless"
-  - name: DB_VENDOR
-    value: "mysql"
-  - name: DB_ADDR
-    value: "mysql.mysql.svc.cluster.local"
-  - name: DB_PORT
-    value: "3307"
-  - name: DB_DATABASE
-    value: "keycloak"
-  - name: DB_USER
-    value: "uptimelabs"
-  - name: DB_PASSWORD
-    value: "uptimelabs"
-  - name: KEYCLOAK_USER
-    value: admin
-  - name: KEYCLOAK_PASSWORD
-    value: uptimelabs
-  - name: MQTT_HOST_URI
-    value: tcp://rabbitmq-public.rabbitmq.svc.cluster.local:1883
-  - name: MQTT_TOPIC
-    value: keycloak/events
-  - name: MQTT_USERNAME
-    value: keycloak
-  - name: MQTT_PASSWORD
-    value: keycloak
-
-extraVolumes: |
-  - name: keycloak-extensions
-    emptyDir: {}
-
-extraVolumeMounts: |
-  - name: keycloak-extensions
-    mountPath: /opt/jboss/keycloak/standalone/deployments
-
-# doesn't work with Docker desktop for some reason
-startupProbe: |
-livenessProbe: |
-readinessProbe: |
