@@ -8,9 +8,9 @@ import (
 )
 
 var removeCmd = &cobra.Command{
-	Use:   "remove [package]",
-	Short: "Remove a package",
-	Long:  `Remove a installed package from the cluster using Helm. The package argument is required.`,
+	Use:   "uninstall [package]",
+	Short: "Uninstall a package",
+	Long:  `Uninstall package from the cluster using Helm. The package argument is required.`,
 	Args:  cobra.MinimumNArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		var pkg *Package
