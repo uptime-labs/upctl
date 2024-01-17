@@ -1,0 +1,7 @@
+auth:
+  enabled: true
+  password: "uptimelabs"
+
+master:
+  service:
+    type: LoadBalancer

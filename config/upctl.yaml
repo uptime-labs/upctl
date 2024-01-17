@@ -43,6 +43,10 @@ packages:
     repo: oci://registry-1.docker.io/bitnamicharts/rabbitmq-cluster-operator
     namespace: rabbitmq-system
     override: rabbitmq-operator.yaml
+  - name: redis
+    repo: oci://registry-1.docker.io/bitnamicharts/redis
+    namespace: redis
+    override: redis.yaml
 
   - name: uptimelabs-envs
     repo: uptimelabs/uptimelabs-envs

@@ -201,6 +201,12 @@ $ upctl install rabbitmq-operator
 $ upctl install uptimelabs-messaging
 ```
 
+Install redis for proxy and operator console
+
+```bash
+$ upctl install redis
+```
+
 #### 5.2.1 Get rabbitmq secrets
 
 ```bash
