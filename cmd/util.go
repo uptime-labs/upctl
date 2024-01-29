@@ -23,12 +23,18 @@ import (
 func cleanPath(path string) string {
 	cleanedPath := filepath.Clean(path)
 
-	if strings.HasPrefix(cleanedPath, "~/") {
+	// check backward and forward paths for Windows
+	if strings.HasPrefix(cleanedPath, "~/") || strings.HasPrefix(cleanedPath, "~\\") {
 		homeDir, err := os.UserHomeDir()
 		if err != nil {
 			log.Fatalf("Error getting user's home directory: %s", err)
 		}
 		expandedPath := filepath.Join(homeDir, cleanedPath[2:])
+		cleanedPath = expandedPath
+	}
+
+	if strings.HasPrefix(cleanedPath, "/tmp") || strings.HasPrefix(cleanedPath, "\\tmp") {
+		expandedPath := filepath.Join(os.TempDir(), cleanedPath[2:])
 		cleanedPath = expandedPath
 	}
 
@@ -162,11 +168,13 @@ func tshAwsEcrLogin() (string, error) {
 
 // create helm client
 func createHelmClient(namespace string) helm.Client {
+	// get temporary directory
+	tmpDir := os.TempDir()
 	opt := &helm.RestConfClientOptions{
 		Options: &helm.Options{
 			Namespace:        namespace,
-			RepositoryCache:  "/tmp/.helmcache",
-			RepositoryConfig: "/tmp/.helmrepo",
+			RepositoryCache:  fmt.Sprintf("%s/.helmcache", tmpDir),
+			RepositoryConfig: fmt.Sprintf("%s/.helmrepo", tmpDir),
 			Debug:            true,
 			Linting:          false,
 			DebugLog: func(format string, v ...interface{}) {

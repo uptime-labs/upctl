@@ -43,15 +43,16 @@ var importDBCmd = &cobra.Command{
 		progress.Start()
 		defer progress.Stop()
 
+		dbFilePah := cleanPath(mysqlConfig.DBFile)
 		// If file does not exist, download from s3 bucket
-		if _, err := os.Stat(mysqlConfig.DBFile); os.IsNotExist(err) {
+		if _, err := os.Stat(dbFilePah); os.IsNotExist(err) {
 			// download database from s3 bucket using tsh aws command
 			// tsh aws s3 cp s3://<bucket>/<database> <database>
 			fmt.Println("Downloading database...")
-			fmt.Println(mysqlConfig.S3Bucket, mysqlConfig.S3Key, mysqlConfig.DBFile, mysqlConfig.S3Region)
+			fmt.Println(mysqlConfig.S3Bucket, mysqlConfig.S3Key, dbFilePah, mysqlConfig.S3Region)
 
 			if err := ExecuteCommand("tsh", "aws", "--app", teleportConfig.AWSApp, "s3", "cp",
-				fmt.Sprintf("s3://%s/%s", mysqlConfig.S3Bucket, mysqlConfig.S3Key), mysqlConfig.DBFile,
+				fmt.Sprintf("s3://%s/%s", mysqlConfig.S3Bucket, mysqlConfig.S3Key), dbFilePah,
 				"--region", mysqlConfig.S3Region); err != nil {
 				fmt.Println("Error downloading database:", err)
 				progress.Stop()
@@ -70,7 +71,7 @@ var importDBCmd = &cobra.Command{
 		// execute mysql command to import database from file using mysqlConfig values
 		// mysql -h <host> -u <user> -p <password> < <database>
 		if err := ExecuteCommand(path, "-h", mysqlConfig.Host, "-P", mysqlConfig.Port, "-u", mysqlConfig.User,
-			fmt.Sprintf("-p%s", mysqlConfig.Password), mysqlConfig.Database, "-e", fmt.Sprint("source ", mysqlConfig.DBFile)); err != nil {
+			fmt.Sprintf("-p%s", mysqlConfig.Password), mysqlConfig.Database, "-e", fmt.Sprint("source ", dbFilePah)); err != nil {
 			fmt.Println("Error importing database:", err)
 			progress.Stop()
 			os.Exit(2)
