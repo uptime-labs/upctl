@@ -1,0 +1,35 @@
+image:
+  image: 300954903401.dkr.ecr.eu-west-1.amazonaws.com:middleware
+  # Overrides the image tag whose default is the chart appVersion.
+  tag: main
+
+imagePullSecrets:
+  - name: regcred
+
+replicaCount: 1
+
+env:
+  ENV_VARIABLE_NAME: production
+  MQTT_PASSWORD: mqtt
+
+envFrom:
+  - configMapRef:
+      name: uptimelabs-envs
+  - secretRef:
+      name: uptimelabs-envs
+#  - secretRef:
+#      name: keycloak-middleware-client
+
+envValueFrom:
+  MQTT_USERNAME:
+    secretKeyRef:
+      name: middleware-client-credentials
+      key: username
+  MQTT_PASSWORD:
+    secretKeyRef:
+      name: middleware-client-credentials
+      key: password
+  RABBIT_MQ_URI:
+    secretKeyRef:
+      name: middleware-client-credentials
+      key: RABBIT_MQ_URI

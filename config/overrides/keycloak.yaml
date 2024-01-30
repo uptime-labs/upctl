@@ -1,0 +1,43 @@
+database:
+  vendor: mysql
+  hostname: mysql.mysql.svc.cluster.local
+  port: 3307
+  username: 'uptimelabs'
+  password: 'uptimelabs'
+  database: keycloak
+
+serviceMonitor:
+  enabled: false
+
+service:
+  type: LoadBalancer
+  # If you change httpPort then you need to reflect the change in the KEYCLOAK_BASE_URL value in the
+  # uptimelabs-env configMap as well.
+  httpPort: 8085
+  httpsPort: 8445
+
+command:
+  - "/opt/keycloak/bin/kc.sh"
+  - "start"
+  - "--http-enabled=true"
+  - "--http-port=8080"
+  - "--hostname-strict=false"
+  - "--hostname-strict-https=false"
+
+#checkov:skip=CKV_SECRET_6:"Base64 High Entropy String"
+extraEnv: |
+  - name: CACHE_OWNERS_COUNT
+    value: "2"
+  - name: CACHE_OWNERS_AUTH_SESSIONS_COUNT
+    value: "2"
+  - name: LDAPTLS_REQCERT
+    value: "never"
+  - name: JAVA_OPTS_APPEND
+    value: >-
+      -Djgroups.dns.query=keycloakx-headless
+  - name: KEYCLOAK_ADMIN
+    value: admin
+  - name: KEYCLOAK_ADMIN_PASSWORD
+    value: uptimelabs
+  - name: PROXY_ADDRESS_FORWARDING
+    value: "true"
