@@ -1,0 +1,34 @@
+dnsDomain: dev.uptimelabs.io
+
+messaging:
+  version: ">=0.2.2"
+
+localStack:
+  enable: true
+
+public:
+  replicaCount: 1
+  persistence:
+    storage: "100Mi"
+    storageClassName: hostpath
+  service:
+    type: LoadBalancer
+  ingress:
+    enabled: false
+  resources:
+    cpu:
+      request: 250m
+    memory:
+      request: 128Mi
+      limit: 512Mi
+
+internal:
+  replicaCount: 1
+  enable: false
+  resources:
+    cpu:
+      request: 250m
+      limit: "1"
+    memory:
+      request: 512Mi
+      limit: 1Gi

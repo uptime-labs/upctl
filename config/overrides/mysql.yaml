@@ -1,0 +1,25 @@
+auth:
+  rootPassword: uptimelabs
+  createDatabase: true
+  database: uptimelabs
+  username: uptimelabs
+  password: uptimelabs
+
+primary:
+  readinessProbe:
+    enabled: false
+  livenessProbe:
+    enabled: false
+  service:
+    type: LoadBalancer
+    ports:
+      mysql: 3307
+
+secondary:
+  replicaCount: 0
+
+initdbScripts:
+  createdb.sql: |-
+    CREATE DATABASE IF NOT EXISTS keycloak;
+    GRANT ALL PRIVILEGES ON *.* TO 'uptimelabs'@'%';
+    FLUSH PRIVILEGES;
