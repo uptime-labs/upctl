@@ -1,3 +1,6 @@
+replica:
+  replicaCount: 0
+
 auth:
   enabled: true
   password: "uptimelabs"
