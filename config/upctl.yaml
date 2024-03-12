@@ -76,7 +76,7 @@ packages:
 # The name of the override file must match the name of the package.
 # The override file is a YAML file containing the values to override.
 # The values are merged with the default values of the package.
-overrides: ~/.upctl/overrides
+overrides: ~/.upctl
 
 # teleport is the configuration for the Teleport client.
 # The host is the address of the Teleport server.
