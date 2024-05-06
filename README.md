@@ -4,7 +4,6 @@ upctl is a wrapper on helm for easy setup of develpment environments
 
 - [1. Dependencies](#1-dependencies)
   - [1.1 Software](#11-software)
-  - [1.2 - Enable kubernets in docker desktop](#12---enable-kubernets-in-docker-desktop)
 - [2. Installation](#2-installation)
   - [2.1 Install upctl](#21-install-upctl)
     - [Linux](#linux)
@@ -18,7 +17,6 @@ upctl is a wrapper on helm for easy setup of develpment environments
 - [7. Import database](#7-import-database)
 - [8. Removing pacakges](#8-removing-pacakges)
 
-
 # 1. Dependencies
 
 ## 1.1 Software
@@ -27,11 +25,8 @@ upctl is a wrapper on helm for easy setup of develpment environments
 - mysql-client
 - awscli
 
-## 1.2 - Enable kubernets in docker desktop
-
 - Open up the settings screen and Navigate to the Kubernetes tab, then check Enable Kubernetes:
 
-<img src="./docs/docker.png" width="500"/>
 
 # 2. Installation
 
