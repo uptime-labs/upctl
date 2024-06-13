@@ -33,7 +33,7 @@ github.com/asaskevich/govalidator
 # github.com/beorn7/perks v1.0.1
 ## explicit; go 1.11
 github.com/beorn7/perks/quantile
-# github.com/briandowns/spinner v1.23.0
+# github.com/briandowns/spinner v1.23.1
 ## explicit; go 1.17
 github.com/briandowns/spinner
 # github.com/cespare/xxhash/v2 v2.2.0
