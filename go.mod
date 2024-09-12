@@ -6,7 +6,7 @@ toolchain go1.22.3
 
 require (
 	github.com/briandowns/spinner v1.23.1
-	github.com/mittwald/go-helm-client v0.12.10
+	github.com/mittwald/go-helm-client v0.12.13
 	github.com/spf13/cobra v1.8.1
 	github.com/spf13/viper v1.19.0
 	helm.sh/helm/v3 v3.16.0
