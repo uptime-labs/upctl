@@ -9,7 +9,7 @@ require (
 	github.com/mittwald/go-helm-client v0.12.13
 	github.com/spf13/cobra v1.8.1
 	github.com/spf13/viper v1.19.0
-	helm.sh/helm/v3 v3.16.0
+	helm.sh/helm/v3 v3.16.1
 	k8s.io/api v0.31.1
 	k8s.io/apimachinery v0.31.1
 	k8s.io/client-go v0.31.1
