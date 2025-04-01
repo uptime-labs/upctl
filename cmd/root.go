@@ -105,6 +105,10 @@ func init() {
 
 	// Add subcommands flags
 	installCmd.Flags().BoolP("all", "a", false, "Install all packages")
+	installCmd.Flags().Bool("docker", false, "Use Docker Compose instead of Kubernetes")
+
+	// Add docker flag to import-db command
+	importDBCmd.Flags().Bool("docker", false, "Use Docker Compose instead of Kubernetes")
 
 	rootCmd.AddCommand(installCmd, removeCmd, versionCmd,
 		importDBCmd, configCmd, listCmd)
@@ -175,26 +179,29 @@ func initConfig() {
 	kubeConfigFile = viper.GetString("kube_config")
 	teleportHost = viper.GetString("teleport_host")
 
+	// Only attempt to load Kubernetes config if the file exists
 	absPath := cleanPath(kubeConfigFile)
 
-	kubeconfigBytes, err = os.ReadFile(absPath)
-	if err != nil {
-		fmt.Printf("Error reading kubeconfig file: %s\n", err.Error())
-		os.Exit(1)
-	}
+	if _, fileErr := os.Stat(absPath); fileErr == nil {
+		kubeconfigBytes, err = os.ReadFile(absPath)
+		if err == nil {
+			kubeConfig, err := clientcmd.Load(kubeconfigBytes)
+			if err == nil {
+				// Set the current context to the one specified in the config
+				kubeConfig.CurrentContext = kubeContext
 
-	kubeConfig, err := clientcmd.Load(kubeconfigBytes)
-	if err != nil {
-		fmt.Printf("Error loading kubeconfig file: %s\n", err.Error())
-		os.Exit(1)
-	}
-	// Set the current context to the one specified in the config
-	kubeConfig.CurrentContext = kubeContext
-
-	restConfig, err = clientcmd.NewDefaultClientConfig(*kubeConfig, &clientcmd.ConfigOverrides{}).ClientConfig()
-	if err != nil {
-		fmt.Println(err.Error())
-		os.Exit(1)
+				restConfig, err = clientcmd.NewDefaultClientConfig(*kubeConfig, &clientcmd.ConfigOverrides{}).ClientConfig()
+				if err != nil {
+					fmt.Printf("Warning: Kubernetes config loaded but client config failed: %s\n", err.Error())
+				}
+			} else {
+				fmt.Printf("Warning: Kubernetes config file found but could not be loaded: %s\n", err.Error())
+			}
+		} else {
+			fmt.Printf("Warning: Kubernetes config file found but could not be read: %s\n", err.Error())
+		}
+	} else {
+		fmt.Printf("Note: No Kubernetes config found at %s. Kubernetes operations will not be available.\n", absPath)
 	}
 
 	// Set the global progress spinner
@@ -207,7 +214,7 @@ var versionCmd = &cobra.Command{
 	Short: "Print the version number of upctl",
 	Long:  `Print the version number of upctl`,
 	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Println("v0.4.0")
+		fmt.Println("v0.5.0 (with Docker Compose support)")
 	},
 }
 

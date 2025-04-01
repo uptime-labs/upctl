@@ -105,6 +105,11 @@ func ExecuteCommand(command string, args ...string) error {
 
 // Create kubernetes clientset
 func createClientSet() (*kubernetes.Clientset, error) {
+	// Check if Kubernetes config is available
+	if restConfig == nil {
+		return nil, fmt.Errorf("kubernetes configuration is not available")
+	}
+
 	overrides := &clientcmd.ConfigOverrides{
 		CurrentContext: kubeContext,
 	}

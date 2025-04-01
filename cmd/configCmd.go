@@ -60,14 +60,6 @@ docker: Configures the ECR image pull secrets for the local development environm
 
 // move case docker to a separate function
 func configDocker() {
-	// create the kubernetes clientset
-	clientset, err := createClientSet()
-	if err != nil {
-		fmt.Println("Error creating kubernetes client config:", err)
-		progress.Stop()
-		os.Exit(1)
-	}
-
 	var password string
 
 	if dockerConfig.UseTeleport {
@@ -97,6 +89,35 @@ func configDocker() {
 	} else {
 		// get the password from the user
 		password = dockerConfig.Password
+	}
+
+	// Check if Kubernetes is available (restConfig not nil)
+	if restConfig == nil {
+		fmt.Println("Kubernetes is not available. Setting up Docker authentication only.")
+		fmt.Println("To use Docker ECR authentication with Kubernetes, ensure your kubeconfig is properly configured.")
+
+		// Configure local Docker authentication
+		fmt.Println("Configuring Docker authentication...")
+		authCmd := fmt.Sprintf("docker login -u %s -p %s %s",
+			dockerConfig.Username, password, dockerConfig.Registry)
+
+		// Run the docker login command
+		if err := ExecuteCommand("sh", "-c", authCmd); err != nil {
+			fmt.Println("Error configuring Docker authentication:", err)
+			progress.Stop()
+			os.Exit(1)
+		}
+
+		fmt.Println("Docker authentication configured successfully")
+		return
+	}
+
+	// Create the kubernetes clientset
+	clientset, err := createClientSet()
+	if err != nil {
+		fmt.Println("Error creating kubernetes client config:", err)
+		progress.Stop()
+		os.Exit(1)
 	}
 
 	// loop through the namespaces and create the secrets
@@ -144,5 +165,5 @@ func configDocker() {
 		}
 	}
 
-	fmt.Println("Secrets created successfully")
+	fmt.Println("Kubernetes secrets created successfully")
 }

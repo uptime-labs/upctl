@@ -1,6 +1,6 @@
 ## upctl
 
-upctl is a wrapper on helm for easy setup of develpment environments 
+upctl is a tool for setting up local development environments using Kubernetes (via Helm) or Docker Compose
 
 - [1. Dependencies](#1-dependencies)
   - [1.1 Software](#11-software)
@@ -13,26 +13,60 @@ upctl is a wrapper on helm for easy setup of develpment environments
   - [3.2 Update the configuration file for your environment.](#32-update-the-configuration-file-for-your-environment)
 - [4. Login to the teleport server](#4-login-to-the-teleport-server)
 - [5. Configure repository cache](#5-configure-repository-cache)
-- [6. Install helm packages](#6-install-helm-packages)
-- [7. Import database](#7-import-database)
-- [8. Removing pacakges](#8-removing-pacakges)
+- [6. Using with Kubernetes (default)](#6-using-with-kubernetes-default)
+  - [6.1 Install helm packages](#61-install-helm-packages)
+  - [6.2 Import database](#62-import-database)
+  - [6.3 Removing packages](#63-removing-packages)
+- [7. Using with Docker Compose](#7-using-with-docker-compose)
+  - [7.1 Docker Compose Configuration](#71-docker-compose-configuration)
+  - [7.2 Install services with Docker Compose](#72-install-services-with-docker-compose)
+  - [7.3 Docker Compose Commands](#73-docker-compose-commands)
+  - [7.4 Import database with Docker Compose](#74-import-database-with-docker-compose)
 
 # 1. Dependencies
 
 ## 1.1 Software
+For Kubernetes mode:
 - [Docker Desktop](https://www.docker.com/products/docker-desktop/) or [colima](https://github.com/abiosoft/colima)
 - kubectl
 - mysql-client
 - awscli
 
-- Open up the settings screen and Navigate to the Kubernetes tab, then check Enable Kubernetes:
-
+For Docker Compose mode:
+- Docker Engine
+- Docker Compose
+- mysql-client (if using database imports)
+- awscli (if downloading database dumps from S3)
 
 # 2. Installation
 
 ## 2.1 Install upctl
 
-Visit [releases page](https://github.com/uptime-labs/upctl/releases) and download the `upctl` version for your operating system (e.g., Linux, macOS).
+### Using Homebrew (macOS and Linux)
+
+```bash
+# Add the tap
+brew tap uptime-labs/upctl
+
+# Install upctl
+brew install upctl
+```
+
+### Easy Linux Installation Script (All Distributions)
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/uptime-labs/upctl/main/scripts/install.sh | bash
+```
+
+Alternatively, you can specify a particular version:
+
+```bash
+VERSION=0.8.0 curl -fsSL https://raw.githubusercontent.com/uptime-labs/upctl/main/scripts/install.sh | bash
+```
+
+### Manual Installation
+
+Visit the [releases page](https://github.com/uptime-labs/upctl/releases) and download the `upctl` version for your operating system (e.g., Linux, macOS).
 
 Make sure to download the correct version for your operating system.
  - `upctl_0.x.x_linux_amd64` for Intel-based GNU/Linux
@@ -40,14 +74,14 @@ Make sure to download the correct version for your operating system.
  - `upctl_0.x.x_darwin_amd64` for intel-based macOS
  - `upctl_0.x.x_darwin_arm64` for Arm-based macOS
 
-### Linux
+#### Linux
 
 ```bash
 cd ~/Downloads
 sudo install -o root -g root -m 0755 upctl_0.8.0_linux_amd64 /usr/local/bin/upctl
 ```
 
-### MacOS
+#### MacOS
 
 ```bash
 cd ~/Downloads
@@ -66,6 +100,8 @@ cp -R config/overrides ~/.upctl/
 
 ## 3.2 Update the configuration file for your environment.
 
+The configuration file supports both Kubernetes/Helm and Docker Compose configurations.
+
 ```yaml
 repositories:
   - name: grafana
@@ -74,7 +110,7 @@ repositories:
     password: <password>
 ```
 
-repository passwords are optional
+Repository passwords are optional
 
 # 4. Login to the teleport server
 
@@ -84,25 +120,126 @@ tsh login --proxy=teleport.example.com
 
 # 5. Configure repository cache
 
+For Kubernetes/Helm mode:
+
 ```bash
 upctl config repo
 ```
 If you modify repositories, re-run the command to update the repositories cache.
 
-# 6. Install helm packages
+# 6. Using with Kubernetes (default)
+
+## 6.1 Install helm packages
 
 ```bash
 upctl install grafana 
 ```
 
-# 7. Import database 
+To install all packages defined in the configuration:
+
+```bash
+upctl install --all
+```
+
+## 6.2 Import database 
 
 ```bash
 upctl import-db
 ```
 
-# 8. Removing pacakges 
+## 6.3 Removing packages 
 
 ```bash
 upctl remove <package name>
+```
+
+# 7. Using with Docker Compose
+
+## 7.1 Docker Compose Configuration
+
+Add your Docker Compose services to the `docker_compose` section in your `upctl.yaml`:
+
+```yaml
+docker_compose:
+  version: '3.8'
+  services:
+    loki:
+      image: grafana/loki:latest
+      ports:
+        - "3100:3100"
+      volumes:
+        - loki-data:/loki
+      command: -config.file=/etc/loki/local-config.yaml
+      restart: unless-stopped
+      networks:
+        - uptimelabs
+    
+    grafana:
+      image: grafana/grafana:latest
+      ports:
+        - "3000:3000"
+      volumes:
+        - grafana-data:/var/lib/grafana
+      restart: unless-stopped
+      networks:
+        - uptimelabs
+      environment:
+        - GF_SECURITY_ADMIN_USER=admin
+        - GF_SECURITY_ADMIN_PASSWORD=admin
+
+  volumes:
+    loki-data:
+      driver: local
+    grafana-data:
+      driver: local
+      
+  networks:
+    uptimelabs:
+      driver: bridge
+```
+
+## 7.2 Install services with Docker Compose
+
+To install packages using Docker Compose instead of Kubernetes/Helm:
+
+```bash
+upctl install --docker grafana
+```
+
+To install all Docker Compose services:
+
+```bash
+upctl install --docker --all
+```
+
+## 7.3 Docker Compose Commands
+
+Use the Docker Compose subcommands directly:
+
+```bash
+# List available services
+upctl docker list
+
+# Start a service
+upctl docker up grafana
+
+# Start all services
+upctl docker up
+
+# Stop a service
+upctl docker down grafana
+
+# Stop all services
+upctl docker down
+
+# View logs
+upctl docker logs grafana
+```
+
+## 7.4 Import database with Docker Compose
+
+Import a database into a Docker MySQL container:
+
+```bash
+upctl import-db --docker
 ```
