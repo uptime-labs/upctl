@@ -1,0 +1,70 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Setup Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.23.x'
+
+      - name: Set up environment
+        run: |
+          echo "RELEASE_VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_ENV
+
+      - name: Build for Linux AMD64
+        run: |
+          GOOS=linux GOARCH=amd64 go build -o upctl_${{ env.RELEASE_VERSION }}_linux_amd64 .
+          chmod +x upctl_${{ env.RELEASE_VERSION }}_linux_amd64
+
+      - name: Build for Linux ARM64
+        run: |
+          GOOS=linux GOARCH=arm64 go build -o upctl_${{ env.RELEASE_VERSION }}_linux_arm64 .
+          chmod +x upctl_${{ env.RELEASE_VERSION }}_linux_arm64
+
+      - name: Build for macOS AMD64
+        run: |
+          GOOS=darwin GOARCH=amd64 go build -o upctl_${{ env.RELEASE_VERSION }}_darwin_amd64 .
+          chmod +x upctl_${{ env.RELEASE_VERSION }}_darwin_amd64
+
+      - name: Build for macOS ARM64
+        run: |
+          GOOS=darwin GOARCH=arm64 go build -o upctl_${{ env.RELEASE_VERSION }}_darwin_arm64 .
+          chmod +x upctl_${{ env.RELEASE_VERSION }}_darwin_arm64
+
+      - name: Create Release
+        id: create_release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            upctl_${{ env.RELEASE_VERSION }}_linux_amd64
+            upctl_${{ env.RELEASE_VERSION }}_linux_arm64
+            upctl_${{ env.RELEASE_VERSION }}_darwin_amd64
+            upctl_${{ env.RELEASE_VERSION }}_darwin_arm64
+          draft: false
+          prerelease: false
+          fail_on_unmatched_files: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Update install.sh
+        run: |
+          sed -i "s/VERSION=.*/VERSION=${{ env.RELEASE_VERSION }}/" scripts/install.sh
+          
+      - name: Commit updated install script
+        uses: EndBug/add-and-commit@v9
+        with:
+          add: 'scripts/install.sh'
+          author_name: GitHub Action
+          author_email: action@github.com
+          message: 'Update install.sh to version ${{ env.RELEASE_VERSION }}'
+          push: true

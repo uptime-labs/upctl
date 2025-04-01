@@ -1,0 +1,157 @@
+name: Update Homebrew Formula
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  update-formula:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout upctl repository
+        uses: actions/checkout@v3
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.23.x'
+
+      - name: Extract version
+        id: extract_version
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/v}
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Wait for release assets
+        run: |
+          # Wait for release assets to be uploaded (adjust timeout as needed)
+          echo "Waiting for release assets to be available..."
+          timeout=300
+          interval=10
+          elapsed=0
+          while [ $elapsed -lt $timeout ]; do
+            count=$(curl -s https://api.github.com/repos/${{ github.repository }}/releases/latest | jq '.assets | length')
+            if [ "$count" -ge 4 ]; then
+              echo "Release assets are available!"
+              break
+            fi
+            echo "Waiting for release assets... ($elapsed/$timeout seconds)"
+            sleep $interval
+            elapsed=$((elapsed + interval))
+          done
+          
+          if [ $elapsed -ge $timeout ]; then
+            echo "Timed out waiting for release assets!"
+            exit 1
+          fi
+
+      - name: Download release binaries and calculate checksums
+        id: checksums
+        run: |
+          mkdir -p tmp
+          
+          # Download each binary and generate SHA256
+          curl -L -o tmp/upctl_${VERSION}_darwin_amd64 https://github.com/${{ github.repository }}/releases/download/v${VERSION}/upctl_${VERSION}_darwin_amd64
+          DARWIN_AMD64=$(sha256sum tmp/upctl_${VERSION}_darwin_amd64 | awk '{print $1}')
+          
+          curl -L -o tmp/upctl_${VERSION}_darwin_arm64 https://github.com/${{ github.repository }}/releases/download/v${VERSION}/upctl_${VERSION}_darwin_arm64
+          DARWIN_ARM64=$(sha256sum tmp/upctl_${VERSION}_darwin_arm64 | awk '{print $1}')
+          
+          curl -L -o tmp/upctl_${VERSION}_linux_amd64 https://github.com/${{ github.repository }}/releases/download/v${VERSION}/upctl_${VERSION}_linux_amd64
+          LINUX_AMD64=$(sha256sum tmp/upctl_${VERSION}_linux_amd64 | awk '{print $1}')
+          
+          curl -L -o tmp/upctl_${VERSION}_linux_arm64 https://github.com/${{ github.repository }}/releases/download/v${VERSION}/upctl_${VERSION}_linux_arm64
+          LINUX_ARM64=$(sha256sum tmp/upctl_${VERSION}_linux_arm64 | awk '{print $1}')
+          
+          # Set outputs
+          echo "darwin_amd64=$DARWIN_AMD64" >> $GITHUB_OUTPUT
+          echo "darwin_arm64=$DARWIN_ARM64" >> $GITHUB_OUTPUT
+          echo "linux_amd64=$LINUX_AMD64" >> $GITHUB_OUTPUT
+          echo "linux_arm64=$LINUX_ARM64" >> $GITHUB_OUTPUT
+
+      - name: Checkout homebrew-upctl repository
+        uses: actions/checkout@v3
+        with:
+          repository: uptime-labs/homebrew-upctl
+          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          path: homebrew-upctl
+
+      - name: Update formula
+        run: |
+          # Create the updated formula with the new version and checksums
+          cat > homebrew-upctl/upctl.rb << EOF
+          class Upctl < Formula
+            desc "CLI tool for setting up local development environments using Kubernetes or Docker Compose"
+            homepage "https://github.com/uptime-labs/upctl"
+            license "MIT"  # Update this based on your actual license
+          
+            version "${{ env.VERSION }}"
+          
+            if OS.mac?
+              if Hardware::CPU.arm?
+                url "https://github.com/uptime-labs/upctl/releases/download/v#{version}/upctl_#{version}_darwin_arm64"
+                sha256 "${{ steps.checksums.outputs.darwin_arm64 }}"
+              else
+                url "https://github.com/uptime-labs/upctl/releases/download/v#{version}/upctl_#{version}_darwin_amd64"
+                sha256 "${{ steps.checksums.outputs.darwin_amd64 }}"
+              end
+            elsif OS.linux?
+              if Hardware::CPU.arm?
+                url "https://github.com/uptime-labs/upctl/releases/download/v#{version}/upctl_#{version}_linux_arm64"
+                sha256 "${{ steps.checksums.outputs.linux_arm64 }}"
+              else
+                url "https://github.com/uptime-labs/upctl/releases/download/v#{version}/upctl_#{version}_linux_amd64"
+                sha256 "${{ steps.checksums.outputs.linux_amd64 }}"
+              end
+            end
+          
+            depends_on "kubectl" => :recommended
+            depends_on "mysql-client" => :recommended
+            depends_on "awscli" => :recommended
+            depends_on "docker" => :recommended
+            depends_on "helm" => :recommended
+          
+            def install
+              bin.install Dir["*"].first => "upctl"
+            end
+          
+            def post_install
+              (buildpath/"upctl.yaml").write <<~EOS
+                repositories:
+                  - name: example
+                    url: https://example.com/charts
+                
+                packages:
+                  - name: example
+                    chart: example/example
+                    version: 1.0.0
+                
+                docker_compose:
+                  version: '3.8'
+                  services:
+                    example:
+                      image: example/example:latest
+                      ports:
+                        - "8080:8080"
+                      restart: unless-stopped
+              EOS
+          
+              mkdir_p "\#{Dir.home}/.upctl"
+              cp "upctl.yaml", "\#{Dir.home}/.upctl.yaml" unless File.exist?("\#{Dir.home}/.upctl.yaml")
+            end
+          
+            test do
+              assert_match "upctl version", shell_output("\#{bin}/upctl version")
+            end
+          end
+          EOF
+
+      - name: Commit and push changes
+        run: |
+          cd homebrew-upctl
+          git config user.name "GitHub Action"
+          git config user.email "action@github.com"
+          git add upctl.rb
+          git commit -m "Update formula to version ${{ env.VERSION }}"
+          git push
