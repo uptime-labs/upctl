@@ -86,3 +86,97 @@ mysql:
   s3_bucket: backups
   s3_key: dump.sql
   s3_region: us-east-1
+
+# docker_compose is the configuration for the Docker Compose functionality
+# It defines the services and configurations to be used with docker-compose
+docker_compose:
+  services:
+    # Loki for log aggregation
+    loki:
+      container_name: upctl_loki
+      image: grafana/loki:latest
+      ports:
+        - "3100:3100"
+      volumes:
+        - upctl_loki-data:/loki
+      command: -config.file=/etc/loki/local-config.yaml
+      restart: unless-stopped
+      networks:
+        - upctl_network
+      environment:
+        - TZ=UTC
+      labels:
+        service: "loki"
+        
+    # Grafana for visualization
+    grafana:
+      container_name: upctl_grafana
+      image: grafana/grafana:latest
+      ports:
+        - "3000:3000"
+      volumes:
+        - upctl_grafana-data:/var/lib/grafana
+      restart: unless-stopped
+      networks:
+        - upctl_network
+      environment:
+        - GF_SECURITY_ADMIN_USER=admin
+        - GF_SECURITY_ADMIN_PASSWORD=admin
+        - GF_USERS_ALLOW_SIGN_UP=false
+        - GF_INSTALL_PLUGINS=grafana-piechart-panel
+      depends_on:
+        - loki
+      labels:
+        service: "grafana"
+        
+    # Prometheus for metrics
+    prometheus:
+      container_name: upctl_prometheus
+      image: prom/prometheus:latest
+      ports:
+        - "9090:9090"
+      volumes:
+        - upctl_prometheus-data:/prometheus
+      restart: unless-stopped
+      networks:
+        - upctl_network
+      command:
+        - --config.file=/etc/prometheus/prometheus.yml
+        - --storage.tsdb.path=/prometheus
+        - --web.console.libraries=/usr/share/prometheus/console_libraries
+        - --web.console.templates=/usr/share/prometheus/consoles
+      labels:
+        service: "prometheus"
+        
+    # MySQL database
+    mysql:
+      container_name: upctl_mysql
+      image: mysql:8.0
+      ports:
+        - "3307:3306"
+      volumes:
+        - upctl_mysql-data:/var/lib/mysql
+      restart: unless-stopped
+      networks:
+        - upctl_network
+      environment:
+        - MYSQL_ROOT_PASSWORD=rootpassword
+        - MYSQL_DATABASE=db
+        - MYSQL_USER=user
+        - MYSQL_PASSWORD=pwd
+      labels:
+        service: "mysql"
+
+  volumes:
+    upctl_loki-data:
+      driver: local
+    upctl_grafana-data:
+      driver: local
+    upctl_prometheus-data:
+      driver: local
+    upctl_mysql-data:
+      driver: local
+
+  networks:
+    upctl_network:
+      driver: bridge

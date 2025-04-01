@@ -11,7 +11,7 @@ import (
 var importDBCmd = &cobra.Command{
 	Use:   "import-db",
 	Short: "Import a database",
-	Long:  `Import a database using tsh and mysql.`,
+	Long:  `Import a database using tsh and mysql. Use --docker flag to import into a Docker container.`,
 	Args:  cobra.MinimumNArgs(0),
 	PreRun: func(cmd *cobra.Command, args []string) {
 		progress.Start()
@@ -40,6 +40,17 @@ var importDBCmd = &cobra.Command{
 		}
 	},
 	Run: func(cmd *cobra.Command, args []string) {
+		// Check if docker flag is set
+		useDocker, _ := cmd.Flags().GetBool("docker")
+
+		// If using Docker, delegate to the docker compose import-db command
+		if useDocker {
+			dockerCmd := dockerComposeImportDBCmd
+			dockerCmd.Run(dockerCmd, args)
+			return
+		}
+
+		// Otherwise, continue with traditional import
 		progress.Start()
 		defer progress.Stop()
 

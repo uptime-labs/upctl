@@ -15,8 +15,8 @@ import (
 var installCmd = &cobra.Command{
 	Use:   "install [package]",
 	Short: "Install a package",
-	Long: `Install a package using Helm. The package argument is optional.
-	provide --all to install all packages`,
+	Long: `Install a package using Helm or Docker Compose. The package argument is optional.
+	provide --all to install all packages, --docker to use Docker Compose instead of Kubernetes`,
 	Args: cobra.MinimumNArgs(0),
 	Run: func(cmd *cobra.Command, args []string) {
 		if !(len(args) > 0 || cmd.Flag("all").Changed) {
@@ -24,6 +24,24 @@ var installCmd = &cobra.Command{
 			os.Exit(1)
 		}
 
+		// Check if the docker flag is set
+		useDocker, _ := cmd.Flags().GetBool("docker")
+
+		// If using Docker Compose, redirect to the docker compose install command
+		if useDocker {
+			dockerCmd := dockerComposeInstallCmd
+
+			// Transfer the --all flag if it was set
+			if cmd.Flag("all").Changed {
+				dockerCmd.Flags().Set("all", "true")
+			}
+
+			// Run the docker compose install command with the same args
+			dockerCmd.Run(dockerCmd, args)
+			return
+		}
+
+		// Otherwise, continue with Kubernetes/Helm installation
 		var pkg *Package
 		if len(args) > 0 {
 			for _, p := range packages {
@@ -42,10 +60,10 @@ var installCmd = &cobra.Command{
 		defer progress.Stop()
 
 		if pkg != nil {
-			fmt.Println("\nInstalling package...")
+			fmt.Println("\nInstalling package using Helm...")
 			installPkg(pkg)
 		} else if cmd.Flag("all").Changed {
-			fmt.Println("\nInstalling all packages...")
+			fmt.Println("\nInstalling all packages using Helm...")
 			for _, pkg := range packages {
 				installPkg(&pkg)
 				progress.Restart()
