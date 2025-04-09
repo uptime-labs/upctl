@@ -5,6 +5,10 @@ on:
     types:
       - released
   workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to release (e.g., 1.2.3)"
+        required: false
 
 jobs:
   update-formula:
@@ -21,7 +25,14 @@ jobs:
       - name: Extract version
         id: extract_version
         run: |
-          VERSION=${GITHUB_REF#refs/tags/v}
+          if [[ -n "${GITHUB_REF}" && "${GITHUB_REF}" == refs/tags/v* ]]; then
+            VERSION=${GITHUB_REF#refs/tags/v}
+          elif [[ -n "${{ github.event.inputs.version }}" ]]; then
+            VERSION=${{ github.event.inputs.version }}
+          else
+            echo "Error: No valid version found in GITHUB_REF or workflow inputs."
+            exit 1
+          fi
           echo "VERSION=$VERSION" >> $GITHUB_ENV
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 

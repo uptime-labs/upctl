@@ -68,3 +68,5 @@ jobs:
           author_email: action@github.com
           message: 'Update install.sh to version ${{ env.RELEASE_VERSION }}'
           push: true
+        env:
+          GITHUB_HEAD_REF: ${{ github.ref_name }}
