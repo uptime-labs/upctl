@@ -10,6 +10,9 @@ on:
         description: "Version to release (e.g., 1.2.3)"
         required: false
 
+permissions:
+  contents: write
+
 jobs:
   update-formula:
     runs-on: ubuntu-latest
@@ -165,6 +168,13 @@ jobs:
           cd homebrew-upctl
           git config user.name "GitHub Action"
           git config user.email "action@github.com"
+
+          # Ensure we are on a branch (e.g., main)
+          git checkout -B main
+
+          # Add and commit changes
           git add upctl.rb
           git commit -m "Update formula to version ${{ env.VERSION }}"
-          git push
+
+          # Push changes to the remote repository
+          git push origin main
