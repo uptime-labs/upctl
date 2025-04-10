@@ -720,6 +720,8 @@ github.com/mittwald/go-helm-client v0.12.10 h1:NvDXzBM0enPtrAHirZQ0D9Zx80yp2cGWc
 github.com/mittwald/go-helm-client v0.12.10/go.mod h1:HA3eMOaUhqa4EXUfj94f6L0v4aUEKHuVV977hVl1KWU=
 github.com/mittwald/go-helm-client v0.12.13 h1:TzoHH3NmlUdgy4cbo2tAuGQTcXkUKdORhZSE/Cq72bA=
 github.com/mittwald/go-helm-client v0.12.13/go.mod h1:BMoJyfs5n2MTe1RmWjTHuRl7b5wXfe6l7Eik1ZaZ0JU=
+github.com/mittwald/go-helm-client v0.12.16 h1:YTyJX6L0SI/O7HNTG0qDZI2/jyGELxJOQEjvTj4mf6k=
+github.com/mittwald/go-helm-client v0.12.16/go.mod h1:PDF7Ra8bmJ2YTNzoehoMMi+gW/EJBk/4TLz7j52rehY=
 github.com/moby/locker v1.0.1 h1:fOXqR41zeveg4fFODix+1Ch4mj/gT0NE1XJbp/epuBg=
 github.com/moby/locker v1.0.1/go.mod h1:S7SDdo5zpBK84bzzVlKr2V0hz+7x9hWbYC/kq7oQppc=
 github.com/moby/spdystream v0.2.0 h1:cjW1zVyyoiM0T7b6UoySUFqzXMoqRckQtXwGPiBhOM8=
