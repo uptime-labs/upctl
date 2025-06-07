@@ -312,7 +312,47 @@ func createTempComposeFile() (string, error) {
 	// Load docker compose config from viper
 	err := viper.Unmarshal(&dockerComposeConfig)
 	if err != nil {
-		return "", fmt.Errorf("error loading docker compose config: %s", err.Error())
+		// Even if general unmarshal fails, proceed to try to get specific keys.
+		// Or, return error: return "", fmt.Errorf("error initial unmarshal: %s", err.Error())
+		// For this fix, let's assume specific Get calls are the source of truth for these keys.
+		// Initialize struct fields if they are nil (they should be if Unmarshal failed or didn't populate)
+		if dockerComposeConfig.Services == nil {
+			dockerComposeConfig.Services = make(map[string]interface{})
+		}
+		if dockerComposeConfig.Volumes == nil {
+			dockerComposeConfig.Volumes = make(map[string]interface{})
+		}
+		if dockerComposeConfig.Networks == nil {
+			dockerComposeConfig.Networks = make(map[string]interface{})
+		}
+	}
+
+	// Explicitly ensure top-level keys are populated
+	if viper.IsSet("services") {
+		servicesData := viper.Get("services")
+		if servicesMap, ok := servicesData.(map[string]interface{}); ok {
+			dockerComposeConfig.Services = servicesMap
+		} else {
+			fmt.Fprintf(os.Stderr, "Warning: 'services' key in upctl.yaml is not in the expected map[string]interface{} format.\n")
+		}
+	}
+
+	if viper.IsSet("volumes") {
+		volumesData := viper.Get("volumes")
+		if volumesMap, ok := volumesData.(map[string]interface{}); ok {
+			dockerComposeConfig.Volumes = volumesMap
+		} else {
+			fmt.Fprintf(os.Stderr, "Warning: 'volumes' key in upctl.yaml is not in the expected map[string]interface{} format.\n")
+		}
+	}
+
+	if viper.IsSet("networks") {
+		networksData := viper.Get("networks")
+		if networksMap, ok := networksData.(map[string]interface{}); ok {
+			dockerComposeConfig.Networks = networksMap
+		} else {
+			fmt.Fprintf(os.Stderr, "Warning: 'networks' key in upctl.yaml is not in the expected map[string]interface{} format.\n")
+		}
 	}
 
 	// Create a temporary file
