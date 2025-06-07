@@ -1,19 +1,14 @@
 package cmd
 
 import (
-	"context"
-	"encoding/base64"
 	"fmt"
 	"os"
 	"os/exec"
 
 	"github.com/spf13/cobra"
-	v1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-/**
+/*
 Configure the helm repositories command
 */
 
@@ -36,29 +31,17 @@ docker: Configures the ECR image pull secrets for the local development environm
 		progress.Start()
 		defer progress.Stop()
 		// check for subcommand
-		if args[0] == "repo" || args[0] == "repositories" || args[0] == "r" {
-			fmt.Println("Adding repositories...")
-
-			for _, r := range repositories {
-				progress.Restart()
-				// decode the password base64
-				if r.Password != "" {
-					pwd, _ := base64.StdEncoding.DecodeString(r.Password)
-					r.Password = string(pwd)
-				}
-				addRepository(r.Name, r.URL, r.Username, r.Password)
-			}
-		} else if args[0] == "docker" || args[0] == "d" {
+		if args[0] == "docker" || args[0] == "d" {
 			configDocker()
 		} else {
 			fmt.Println("Please provide a valid configuration command")
-			fmt.Println("Valid commands are: repo, docker")
+			fmt.Println("Valid commands are: docker")
 			os.Exit(1)
 		}
 	},
 }
 
-// move case docker to a separate function
+// configDocker configures Docker authentication, potentially using ECR/Teleport.
 func configDocker() {
 	var password string
 
@@ -91,79 +74,18 @@ func configDocker() {
 		password = dockerConfig.Password
 	}
 
-	// Check if Kubernetes is available (restConfig not nil)
-	if restConfig == nil {
-		fmt.Println("Kubernetes is not available. Setting up Docker authentication only.")
-		fmt.Println("To use Docker ECR authentication with Kubernetes, ensure your kubeconfig is properly configured.")
+	// Configure local Docker authentication
+	fmt.Println("Configuring Docker authentication...")
+	authCmd := fmt.Sprintf("docker login -u %s -p %s %s",
+		dockerConfig.Username, password, dockerConfig.Registry)
 
-		// Configure local Docker authentication
-		fmt.Println("Configuring Docker authentication...")
-		authCmd := fmt.Sprintf("docker login -u %s -p %s %s",
-			dockerConfig.Username, password, dockerConfig.Registry)
-
-		// Run the docker login command
-		if err := ExecuteCommand("sh", "-c", authCmd); err != nil {
-			fmt.Println("Error configuring Docker authentication:", err)
-			progress.Stop()
-			os.Exit(1)
-		}
-
-		fmt.Println("Docker authentication configured successfully")
-		return
-	}
-
-	// Create the kubernetes clientset
-	clientset, err := createClientSet()
-	if err != nil {
-		fmt.Println("Error creating kubernetes client config:", err)
+	// Run the docker login command
+	if err := ExecuteCommand("sh", "-c", authCmd); err != nil {
+		fmt.Println("Error configuring Docker authentication:", err)
 		progress.Stop()
 		os.Exit(1)
 	}
 
-	// loop through the namespaces and create the secrets
-	for _, r := range dockerConfig.Namespaces {
-		progress.Restart()
-		fmt.Println("Adding secret for namespace", r)
-
-		err := createNamespace(context.Background(), r)
-		if errors.IsAlreadyExists(err) {
-			// do nothing
-		} else if err != nil {
-			fmt.Println("Error creating namespace:", err)
-			progress.Stop()
-			os.Exit(1)
-		}
-
-		// create a secret
-		secret := &v1.Secret{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      dockerConfig.Name,
-				Namespace: r,
-				Labels: map[string]string{
-					"app": "upctl",
-				},
-			},
-			Type: v1.SecretTypeDockerConfigJson,
-			Data: map[string][]byte{
-				v1.DockerConfigJsonKey: []byte(fmt.Sprintf(`{"auths":{"%s":{"username":"%s","password":"%s","auth":"%s"}}}`, dockerConfig.Registry, dockerConfig.Username, password, base64.StdEncoding.EncodeToString([]byte(fmt.Sprintf("%s:%s", dockerConfig.Username, password))))),
-			},
-		}
-		// pass the context and secret to the clientset
-		_, err = clientset.CoreV1().Secrets(r).Create(context.Background(), secret, metav1.CreateOptions{})
-		if errors.IsAlreadyExists(err) {
-			// update the secret
-			_, err = clientset.CoreV1().Secrets(r).Update(context.Background(), secret, metav1.UpdateOptions{})
-			if err != nil {
-				fmt.Println("Error updating secret:", err)
-				progress.Stop()
-				os.Exit(1)
-			}
-		} else if err != nil {
-			fmt.Println("Error creating secret:", err)
-			progress.Stop()
-			os.Exit(1)
-		}
-	}
-
-	fmt.Println("Kubernetes secrets created successfully")
+	fmt.Println("Docker authentication configured successfully")
+	// Removed Kubernetes secret creation logic
 }

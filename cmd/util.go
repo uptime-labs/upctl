@@ -3,19 +3,12 @@ package cmd
 import (
 	"bufio"
 	"bytes"
-	"context"
 	"fmt"
 	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
-
-	helm "github.com/mittwald/go-helm-client"
-	v1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/tools/clientcmd"
 )
 
 // cleanPath cleans up a path and expands ~ to the user's home directory
@@ -103,55 +96,6 @@ func ExecuteCommand(command string, args ...string) error {
 	return nil
 }
 
-// Create kubernetes clientset
-func createClientSet() (*kubernetes.Clientset, error) {
-	// Check if Kubernetes config is available
-	if restConfig == nil {
-		return nil, fmt.Errorf("kubernetes configuration is not available")
-	}
-
-	overrides := &clientcmd.ConfigOverrides{
-		CurrentContext: kubeContext,
-	}
-
-	absPath := cleanPath(kubeConfigFile)
-	// get the kubeconfig
-	configLoadingRules := &clientcmd.ClientConfigLoadingRules{ExplicitPath: absPath}
-	cfg := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(configLoadingRules, overrides)
-
-	// get client config from bytes
-	config, err := cfg.ClientConfig()
-	if err != nil {
-		return nil, err
-	}
-
-	clientset, err := kubernetes.NewForConfig(config)
-	if err != nil {
-		return nil, err
-	}
-
-	return clientset, nil
-}
-
-// create a namespace
-func createNamespace(ctx context.Context, name string) error {
-	clientset, err := createClientSet()
-	if err != nil {
-		return err
-	}
-
-	_, err = clientset.CoreV1().Namespaces().Create(ctx, &v1.Namespace{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: name,
-		},
-	}, metav1.CreateOptions{})
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
 // tshAwsEcrLogin
 func tshAwsEcrLogin() (string, error) {
 	cmd := exec.Command("tsh", "aws", "--app", dockerConfig.AWSApp, "ecr", "get-login-password", "--region", "eu-west-1")
@@ -169,36 +113,6 @@ func tshAwsEcrLogin() (string, error) {
 		return scanner.Text(), nil
 	}
 	return "", fmt.Errorf("no password found")
-}
-
-// create helm client
-func createHelmClient(namespace string) helm.Client {
-	// get temporary directory
-	tmpDir := os.TempDir()
-	opt := &helm.RestConfClientOptions{
-		Options: &helm.Options{
-			Namespace:        namespace,
-			RepositoryCache:  fmt.Sprintf("%s/.helmcache", tmpDir),
-			RepositoryConfig: fmt.Sprintf("%s/.helmrepo", tmpDir),
-			Debug:            true,
-			Linting:          false,
-			DebugLog: func(format string, v ...interface{}) {
-				progress.Restart()
-				fmt.Printf(format, v...)
-				fmt.Println()
-			},
-		},
-		RestConfig: restConfig,
-	}
-
-	// Create a new Helm client.
-	client, err := helm.NewClientFromRestConf(opt)
-	if err != nil {
-		fmt.Printf("Error creating Helm client: %s", err.Error())
-		os.Exit(1)
-	}
-
-	return client
 }
 
 func contains(elements []string, element string) bool {
