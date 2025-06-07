@@ -45,7 +45,18 @@ services:
     ports:
       - "8989:80"
 `,
-			expectInOutput: []string{"--- Upctl Doctor ---", "1. Checking config file... OK", "2. Validating config structure (services, volumes, networks)... OK", "3. Checking for 'services' definition... OK", "4. Checking for port conflicts...", "Info: Port 8989 (service: web, address: :8989) is available.", "--- Doctor checks complete ---"},
+			expectInOutput: []string{
+				"--- Upctl Doctor ---",
+				"1. Checking config file... OK",
+				"2. Validating config structure (services, volumes, networks)... OK",
+				"3. Checking for 'services' definition... OK",
+				"--- Port Conflict Analysis ---",
+				"Checking for internal port conflicts within upctl.yaml...",
+				"[OK] No internal port conflicts found in upctl.yaml.",
+				"Checking unique service ports against host activity...",
+				"[OK] Port Available: Port 8989 (address: :8989, defined for service 'web') is available on the host.",
+				"--- Doctor checks complete ---",
+			},
 		},
 		{
 			name: "Config file not found",
@@ -75,7 +86,14 @@ services:
     ports:
       - "8991:81"
 `,
-			expectInOutput: []string{"Info: Port 8991", "is available", "Error: Port 8991", "conflicts with service", "within upctl.yaml."},
+			expectInOutput: []string{
+				"--- Port Conflict Analysis ---",
+				"Checking for internal port conflicts within upctl.yaml...",
+				"[!] Internal Conflict: Port 8991 (address: :8991) is defined by multiple services: app1, app2", // Order of app1, app2 might vary
+				// We should not see an "Info: Port 8991 ... is available" for an internally conflicted port.
+				// The host check for :8991 will be skipped.
+			},
+			notExpectInOutput: []string{"[OK] Port Available: Port 8991"}, // Ensure it's not reported as available by one of the services
 		},
 		{
 			name: "Port already in use",
@@ -94,7 +112,7 @@ services:
 				}
 				return func() { listener.Close() }
 			},
-			expectInOutput: []string{"Error: Port 8992 (service: testservice, address: :8992) is already in use on the host."},
+			expectInOutput: []string{"[!] Host Conflict: Port 8992 (address: :8992, defined for service 'testservice') is in use by another application on the host."},
 		},
 		{
             name: "Port defined with IP, available",
@@ -105,7 +123,7 @@ services:
     ports:
       - "127.0.0.1:8993:80"
 `,
-            expectInOutput: []string{"Info: Port 8993 (service: web_with_ip, address: 127.0.0.1:8993) is available."},
+            expectInOutput: []string{"[OK] Port Available: Port 8993 (address: 127.0.0.1:8993, defined for service 'web_with_ip') is available on the host."},
         },
         {
             name: "Port defined with IP, in use",
@@ -124,7 +142,7 @@ services:
                 }
                 return func() { listener.Close() }
             },
-            expectInOutput: []string{"Error: Port 8994 (service: another_service, address: 127.0.0.1:8994) is already in use on the host."},
+            expectInOutput: []string{"[!] Host Conflict: Port 8994 (address: 127.0.0.1:8994, defined for service 'another_service') is in use by another application on the host."},
         },
 	}
 

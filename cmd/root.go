@@ -253,10 +253,14 @@ func runDoctorChecks(cmd *cobra.Command, args []string) {
 		fmt.Println("OK")
 	}
 
-	// Check 4: Port conflicts
-	fmt.Println("4. Checking for port conflicts...")
+	// Check 4: Port Conflict Analysis
+	fmt.Println("\n--- Port Conflict Analysis ---")
+
 	if cfg.Services != nil && len(cfg.Services) > 0 {
-		parsedHostPorts := make(map[string]string) // To detect internal duplicates
+		// Phase 1: Internal Conflict Detection
+		fmt.Println("Checking for internal port conflicts within upctl.yaml...")
+		portToServicesMap := make(map[string][]string) // Stores listenAddress -> serviceNames
+		listenAddressToHostPort := make(map[string]string) // Stores listenAddress -> hostPort (for cleaner reporting)
 
 		for serviceName, serviceData := range cfg.Services {
 			serviceMap, ok := serviceData.(map[string]interface{})
@@ -285,52 +289,85 @@ func runDoctorChecks(cmd *cobra.Command, args []string) {
 				}
 
 				parts := strings.Split(portEntry, ":")
-				var hostPort string
-				var hostIP string // Currently not used for listening check, but parsed
+				var hostPortStr string
+				var hostIP string
 
-				if len(parts) == 1 { // "CONTAINER_PORT" or "HOST_PORT" (docker-compose treats as HOST_PORT:CONTAINER_PORT if CONTAINER_PORT not specified elsewhere)
-					hostPort = parts[0]
-				} else if len(parts) == 2 { // "HOST_PORT:CONTAINER_PORT"
-					hostPort = parts[0]
-				} else if len(parts) == 3 { // "IP:HOST_PORT:CONTAINER_PORT"
+				if len(parts) == 1 {
+					hostPortStr = parts[0]
+				} else if len(parts) == 2 {
+					hostPortStr = parts[0]
+				} else if len(parts) == 3 {
 					hostIP = parts[0]
-					hostPort = parts[1]
+					hostPortStr = parts[1]
 				} else {
-					fmt.Printf("   Warning: Invalid port format '%s' for service '%s'. Skipping.\n", portEntry, serviceName)
+					fmt.Printf("     Warning: Invalid port format '%s' for service '%s'. Skipping.\n", portEntry, serviceName)
 					continue
 				}
 
-				// Validate if hostPort is a number (it should be, based on parsing logic)
-				if _, err := strconv.Atoi(hostPort); err != nil {
-					fmt.Printf("   Warning: Host port part '%s' (from entry '%s' for service '%s') is not a valid number. Skipping.\n", hostPort, portEntry, serviceName)
+				if _, err := strconv.Atoi(hostPortStr); err != nil {
+					fmt.Printf("     Warning: Host port part '%s' (from entry '%s' for service '%s') is not a valid number. Skipping.\n", hostPortStr, portEntry, serviceName)
 					continue
 				}
 
-				listenAddress := ":" + hostPort
+				listenAddress := ":" + hostPortStr
 				if hostIP != "" {
-					listenAddress = hostIP + ":" + hostPort
+					listenAddress = hostIP + ":" + hostPortStr
 				}
 
-				// Check for internal conflicts first
-				if conflictingService, exists := parsedHostPorts[listenAddress]; exists {
-					fmt.Printf("   Error: Port %s (service: %s) conflicts with service '%s' within upctl.yaml.\n", hostPort, serviceName, conflictingService)
-					continue // Don't check this port on the host if it's already an internal conflict
-				}
-				parsedHostPorts[listenAddress] = serviceName
-
-				listener, err := net.Listen("tcp", listenAddress)
-				if err != nil {
-					fmt.Printf("   Error: Port %s (service: %s, address: %s) is already in use on the host.\n", hostPort, serviceName, listenAddress)
-				} else {
-					fmt.Printf("   Info: Port %s (service: %s, address: %s) is available.\n", hostPort, serviceName, listenAddress)
-					listener.Close()
-				}
+				portToServicesMap[listenAddress] = append(portToServicesMap[listenAddress], serviceName)
+				listenAddressToHostPort[listenAddress] = hostPortStr // Store for easy access to just the port number
 			}
 		}
+
+		internallyConflictedPorts := make(map[string]bool)
+		internalConflictsFound := false
+		for listenAddress, servicesUsingPort := range portToServicesMap {
+			hostPortForDisplay := listenAddressToHostPort[listenAddress] // Get the cleaner port number
+			if len(servicesUsingPort) > 1 {
+				fmt.Printf("  [!] Internal Conflict: Port %s (address: %s) is defined by multiple services: %s\n", hostPortForDisplay, listenAddress, strings.Join(servicesUsingPort, ", "))
+				internallyConflictedPorts[listenAddress] = true
+				internalConflictsFound = true
+			}
+		}
+		if !internalConflictsFound {
+			fmt.Println("  [OK] No internal port conflicts found in upctl.yaml.")
+		}
+
+		// Phase 2: External Conflict Detection (Host Port Availability Check)
+		fmt.Println("\nChecking unique service ports against host activity...")
+		if len(portToServicesMap) == 0 {
+			fmt.Println("  Info: No service ports defined to check against host activity.")
+		}
+
+		checkedExternalPorts := 0
+		for listenAddress, servicesUsingPort := range portToServicesMap {
+			hostPortForDisplay := listenAddressToHostPort[listenAddress] // Get the cleaner port number
+			if internallyConflictedPorts[listenAddress] {
+				// fmt.Printf("  Skipping host check for internally conflicted port %s (address: %s).\n", hostPortForDisplay, listenAddress)
+				continue // Skip host check for internally conflicted ports
+			}
+			checkedExternalPorts++
+			listener, err := net.Listen("tcp", listenAddress)
+			if err != nil {
+				fmt.Printf("  [!] Host Conflict: Port %s (address: %s, defined for service '%s') is in use by another application on the host.\n", hostPortForDisplay, listenAddress, servicesUsingPort[0])
+			} else {
+				fmt.Printf("  [OK] Port Available: Port %s (address: %s, defined for service '%s') is available on the host.\n", hostPortForDisplay, listenAddress, servicesUsingPort[0])
+				listener.Close()
+			}
+		}
+		if !internalConflictsFound && checkedExternalPorts == 0 && len(cfg.Services) > 0 && len(portToServicesMap) > 0 {
+             // This case means ports were defined, but all were internally conflicted, so none were checked externally.
+             // Or, no ports were defined that could be checked (e.g. all invalid format)
+             // The condition for "no service ports defined" above should catch if portToServicesMap is empty.
+        } else if !internalConflictsFound && checkedExternalPorts == 0 && len(portToServicesMap) == 0 && len(cfg.Services) > 0{
+             fmt.Println("  Info: No valid, unique service ports found to check against host activity.")
+        }
+
+
 	} else {
-		fmt.Println("   Info: No services with ports to check.")
+		fmt.Println("  Info: No services defined to check for port conflicts.")
 	}
-	fmt.Println("--- Doctor checks complete ---")
+	fmt.Println("\n--- Doctor checks complete ---")
 }
 
 // upCmd represents the up command (renamed from startCmd)
