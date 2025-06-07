@@ -32,7 +32,7 @@ var (
 		Short: "Start Docker Compose services",
 		Long:  `Start Docker Compose services defined in the configuration`,
 		Args:  cobra.MaximumNArgs(1),
-		Run:   runDockerComposeUp,
+		Run:   RunDockerComposeUp,
 	}
 
 	dockerComposeDownCmd = &cobra.Command{
@@ -89,7 +89,31 @@ func init() {
 	rootCmd.AddCommand(dockerComposeCmd)
 }
 
-func runDockerComposeUp(cmd *cobra.Command, args []string) {
+// RunDockerComposePs lists running docker compose services.
+func RunDockerComposePs(cmd *cobra.Command, args []string) {
+	progress.Start()
+	defer progress.Stop()
+
+	tempComposePath, err := createTempComposeFile()
+	if err != nil {
+		fmt.Printf("Error creating temporary compose file: %s\n", err.Error())
+		os.Exit(1)
+	}
+	defer os.Remove(tempComposePath)
+
+	fmt.Println("Listing Docker Compose services...")
+	composeArgs := []string{"compose", "-f", tempComposePath, "ps"}
+	composeArgs = append(composeArgs, args...) // Pass through any additional arguments
+
+	err = ExecuteCommand("docker", composeArgs...)
+	if err != nil {
+		fmt.Printf("Error listing Docker Compose services: %s\n", err.Error())
+		os.Exit(1)
+	}
+}
+
+// RunDockerComposeUp starts docker compose services. It's public so it can be called from other packages.
+func RunDockerComposeUp(cmd *cobra.Command, args []string) {
 	progress.Start()
 	defer progress.Stop()
 
@@ -146,7 +170,7 @@ func runDockerComposeDown(cmd *cobra.Command, args []string) {
 
 func runDockerComposeList(cmd *cobra.Command, args []string) {
 	// Load docker compose config from viper
-	err := viper.UnmarshalKey("docker_compose", &dockerComposeConfig)
+	err := viper.Unmarshal(&dockerComposeConfig)
 	if err != nil {
 		fmt.Printf("Error loading docker compose config: %s\n", err.Error())
 		os.Exit(1)
@@ -180,7 +204,7 @@ func runDockerComposeInstall(cmd *cobra.Command, args []string) {
 	defer os.Remove(tempComposePath)
 
 	// Load the services from the config
-	err = viper.UnmarshalKey("docker_compose", &dockerComposeConfig)
+	err = viper.Unmarshal(&dockerComposeConfig)
 	if err != nil {
 		fmt.Printf("Error loading docker compose config: %s\n", err.Error())
 		os.Exit(1)
@@ -351,7 +375,7 @@ func runDockerImportDB(cmd *cobra.Command, args []string) {
 
 func createTempComposeFile() (string, error) {
 	// Load docker compose config from viper
-	err := viper.UnmarshalKey("docker_compose", &dockerComposeConfig)
+	err := viper.Unmarshal(&dockerComposeConfig)
 	if err != nil {
 		return "", fmt.Errorf("error loading docker compose config: %s", err.Error())
 	}
