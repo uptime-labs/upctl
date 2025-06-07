@@ -13,81 +13,14 @@ import (
 
 // DockerComposeConfig is the struct that holds the Docker Compose config values
 type DockerComposeConfig struct {
-	Version  string                 `mapstructure:"version" yaml:"version"`
 	Services map[string]interface{} `mapstructure:"services" yaml:"services"`
-	Volumes  map[string]interface{} `mapstructure:"volumes" yaml:"volumes,omitempty"`
-	Networks map[string]interface{} `mapstructure:"networks" yaml:"networks,omitempty"`
+	Volumes  map[string]interface{} `mapstructure:"volumes" yaml:"volumes"`  // Removed omitempty
+	Networks map[string]interface{} `mapstructure:"networks" yaml:"networks"` // Removed omitempty
 }
 
 var (
 	dockerComposeConfig DockerComposeConfig
-	dockerComposeCmd    = &cobra.Command{
-		Use:   "docker",
-		Short: "Docker compose commands",
-		Long:  `Commands for managing Docker Compose environment`,
-	}
-
-	dockerComposeUpCmd = &cobra.Command{
-		Use:   "up [service]",
-		Short: "Start Docker Compose services",
-		Long:  `Start Docker Compose services defined in the configuration`,
-		Args:  cobra.MaximumNArgs(1),
-		Run:   RunDockerComposeUp,
-	}
-
-	dockerComposeDownCmd = &cobra.Command{
-		Use:   "down",
-		Short: "Stop Docker Compose services",
-		Long:  `Stop Docker Compose services defined in the configuration`,
-		Run:   runDockerComposeDown,
-	}
-
-	dockerComposeListCmd = &cobra.Command{
-		Use:   "list",
-		Short: "List Docker Compose services",
-		Long:  `List Docker Compose services defined in the configuration`,
-		Run:   runDockerComposeList,
-	}
-
-	dockerComposeInstallCmd = &cobra.Command{
-		Use:   "install [service]",
-		Short: "Install and start a specific service",
-		Long:  `Install and start a specific service from the configuration`,
-		Args:  cobra.MaximumNArgs(1),
-		Run:   runDockerComposeInstall,
-	}
-
-	dockerComposeLogs = &cobra.Command{
-		Use:   "logs [service]",
-		Short: "Show logs for services",
-		Long:  `Show logs for Docker Compose services defined in the configuration`,
-		Args:  cobra.MaximumNArgs(1),
-		Run:   runDockerComposeLogs,
-	}
-
-	dockerComposeImportDBCmd = &cobra.Command{
-		Use:   "import-db",
-		Short: "Import a database",
-		Long:  `Import a database into a Docker MySQL container`,
-		Run:   runDockerImportDB,
-	}
 )
-
-func init() {
-	dockerComposeCmd.AddCommand(
-		dockerComposeUpCmd,
-		dockerComposeDownCmd,
-		dockerComposeListCmd,
-		dockerComposeInstallCmd,
-		dockerComposeLogs,
-		dockerComposeImportDBCmd,
-	)
-
-	// Add the "all" flag to the install command for installing all services
-	dockerComposeInstallCmd.Flags().BoolP("all", "a", false, "Install all services")
-
-	rootCmd.AddCommand(dockerComposeCmd)
-}
 
 // RunDockerComposePs lists running docker compose services.
 func RunDockerComposePs(cmd *cobra.Command, args []string) {
@@ -145,7 +78,8 @@ func RunDockerComposeUp(cmd *cobra.Command, args []string) {
 	fmt.Println("Docker Compose services started successfully")
 }
 
-func runDockerComposeDown(cmd *cobra.Command, args []string) {
+// RunDockerComposeDown stops Docker Compose services.
+func RunDockerComposeDown(cmd *cobra.Command, args []string) {
 	progress.Start()
 	defer progress.Stop()
 
@@ -168,7 +102,8 @@ func runDockerComposeDown(cmd *cobra.Command, args []string) {
 	fmt.Println("Docker Compose services stopped successfully")
 }
 
-func runDockerComposeList(cmd *cobra.Command, args []string) {
+// RunDockerComposeListServices lists available Docker Compose services defined in the configuration.
+func RunDockerComposeListServices(cmd *cobra.Command, args []string) {
 	// Load docker compose config from viper
 	err := viper.Unmarshal(&dockerComposeConfig)
 	if err != nil {
@@ -182,8 +117,8 @@ func runDockerComposeList(cmd *cobra.Command, args []string) {
 	}
 }
 
-// runDockerComposeInstall handles the installation of specific or all services
-func runDockerComposeInstall(cmd *cobra.Command, args []string) {
+// RunDockerComposeInstall handles the installation of specific or all services.
+func RunDockerComposeInstall(cmd *cobra.Command, args []string) {
 	progress.Start()
 	defer progress.Stop()
 
@@ -236,8 +171,8 @@ func runDockerComposeInstall(cmd *cobra.Command, args []string) {
 	}
 }
 
-// runDockerComposeLogs shows logs for one or all services
-func runDockerComposeLogs(cmd *cobra.Command, args []string) {
+// RunDockerComposeLogs shows logs for one or all services.
+func RunDockerComposeLogs(cmd *cobra.Command, args []string) {
 	// Create a temporary compose file
 	tempComposePath, err := createTempComposeFile()
 	if err != nil {
@@ -266,8 +201,8 @@ func runDockerComposeLogs(cmd *cobra.Command, args []string) {
 }
 
 // createTempComposeFile creates a temporary docker-compose.yml file from the config
-// runDockerImportDB handles importing a database into a Docker MySQL container
-func runDockerImportDB(cmd *cobra.Command, args []string) {
+// RunDockerImportDB handles importing a database into a Docker MySQL container.
+func RunDockerImportDB(cmd *cobra.Command, args []string) {
 	progress.Start()
 	defer progress.Stop()
 

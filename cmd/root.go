@@ -78,6 +78,10 @@ var (
 	teleportHost   string
 
 	progress *spinner.Spinner
+
+	// Command variables for install and import-db, defined in init()
+	installCmd  *cobra.Command
+	importDBCmd *cobra.Command
 )
 
 // Execute executes the root command.
@@ -93,43 +97,85 @@ func init() {
 	viper.SetDefault("author", "Gamunu Balagalla <gamunu@upltimelabs.io>")
 	viper.SetDefault("license", "(C) UpTimeLabs")
 
-	rootCmd.AddCommand(versionCmd, importDBCmd, configCmd, startCmd, psCmd, doctorCmd, validateCmd)
+	// Define installCmd and importDBCmd (assuming old Helm versions are gone or were never in this file)
+	installCmd = &cobra.Command{
+		Use:   "install [service]",
+		Short: "Install and start a specific service using Docker Compose",
+		Long:  `Install and start a specific service from the configuration using Docker Compose.`,
+		Args:  cobra.MaximumNArgs(1),
+		Run: func(ccmd *cobra.Command, args []string) {
+			if progress == nil {
+				progress = spinner.New(spinner.CharSets[14], 100*time.Millisecond, spinner.WithWriter(os.Stderr))
+			}
+			RunDockerComposeInstall(ccmd, args)
+		},
+	}
+	installCmd.Flags().BoolP("all", "a", false, "Install all services")
+
+	importDBCmd = &cobra.Command{
+		Use:   "import-db",
+		Short: "Import a database into a Docker MySQL container",
+		Long:  `Import a database into the MySQL service defined in Docker Compose.`,
+		Run: func(ccmd *cobra.Command, args []string) {
+			if progress == nil {
+				progress = spinner.New(spinner.CharSets[14], 100*time.Millisecond, spinner.WithWriter(os.Stderr))
+			}
+			RunDockerImportDB(ccmd, args)
+		},
+	}
+
+	rootCmd.AddCommand(
+		upCmd,       // Renamed from startCmd
+		downCmd,     // New
+		logsCmd,     // New
+		psCmd,       // Existing
+		listServicesCmd, // New
+		installCmd,  // New or updated
+		importDBCmd, // New or updated
+		configCmd,   // Existing
+		doctorCmd,   // Existing
+		validateCmd, // Existing
+		versionCmd,  // Existing
+	)
 }
 
 var validateCmd = &cobra.Command{
 	Use:   "validate",
 	Short: "Validate the upctl.yaml configuration file",
 	Long:  `Checks the syntax and structure of the upctl.yaml file.`,
-	Run:   runValidationChecks,
+	Run: func(ccmd *cobra.Command, args []string) {
+		// The global cfgFile is populated by Cobra from the --config flag
+		runValidationChecks(ccmd, args, cfgFile)
+	},
 }
 
-func runValidationChecks(cmd *cobra.Command, args []string) {
+func runValidationChecks(cmd *cobra.Command, args []string, explicitPath string) {
 	fmt.Println("Validating upctl.yaml...")
+	viper.SetConfigType("yaml") // Set type universally
 
-	// Config file loading check
-	configFileUsed := viper.ConfigFileUsed()
-	if configFileUsed == "" {
-		// This case might be rare if initConfig is always effective.
-		// However, if 'upctl validate --config some_nonexistent_file' is run,
-		// or if $HOME/.upctl.yaml & ./.upctl.yaml are missing.
-		home, _ := os.UserHomeDir() // For error message
-		fmt.Printf("Error: Configuration file not found. Searched in %s/.upctl.yaml and ./.upctl.yaml.\n", home)
-		fmt.Println("Please ensure a configuration file exists or specify one with --config.")
-		return
+	if explicitPath != "" {
+		viper.SetConfigFile(explicitPath)
+	} else {
+		home, _ := os.UserHomeDir()
+		if home != "" {
+			viper.AddConfigPath(home)
+		}
+		viper.AddConfigPath(".")
+		viper.SetConfigName(".upctl")
 	}
-	fmt.Println("Using configuration file:", configFileUsed)
 
-	// YAML Syntax Check - viper.ReadInConfig() in initConfig already does this.
-	// If initConfig failed, it would have os.Exit(1).
-	// If we are here, ReadInConfig in initConfig was successful.
-	// We can re-read it or rely on viper's cached state.
-	// For an explicit validation command, re-reading can be more robust if the file changed
-	// or if we want to isolate validation logic, but initConfig already ensures basic readability.
-	// The prompt implies viper.ReadInConfig() should be called here again for the check.
 	if err := viper.ReadInConfig(); err != nil {
-		fmt.Printf("Error: Failed to read or parse configuration file. Details: %v\n", err)
+		filePathTried := cfgFile // Path explicitly attempted if --config was used
+		if filePathTried == "" { // If --config was not used, Viper searched default paths
+			filePathTried = "default paths ($HOME/.upctl.yaml, ./.upctl.yaml)"
+		}
+		// Provide a comprehensive error message
+		fmt.Printf("Error: Failed to load or parse configuration. Attempted: %s. Viper error: %v\n", filePathTried, err)
 		return
 	}
+
+	// If ReadInConfig is successful:
+	fmt.Println("Successfully read configuration file:", viper.ConfigFileUsed())
 	fmt.Println("YAML syntax: OK")
 
 	// Structure Validation
@@ -287,6 +333,48 @@ func runDoctorChecks(cmd *cobra.Command, args []string) {
 	fmt.Println("--- Doctor checks complete ---")
 }
 
+// upCmd represents the up command (renamed from startCmd)
+var upCmd = &cobra.Command{
+	Use:   "up [service]",
+	Short: "Start specified or all services using Docker Compose",
+	Long:  `Starts the services defined in your upctl.yaml file using Docker Compose. Equivalent to 'docker compose up -d'. You can optionally specify a single service to start.`,
+	Args:  cobra.MaximumNArgs(1),
+	Run: func(ccmd *cobra.Command, args []string) {
+		if progress == nil {
+			progress = spinner.New(spinner.CharSets[14], 100*time.Millisecond, spinner.WithWriter(os.Stderr))
+		}
+		RunDockerComposeUp(ccmd, args)
+	},
+}
+
+var downCmd = &cobra.Command{
+	Use:   "down",
+	Short: "Stop Docker Compose services",
+	Long:  `Stops and removes containers, networks, volumes, and images created by 'up'. Equivalent to 'docker compose down'.`,
+	Run: func(ccmd *cobra.Command, args []string) {
+		if progress == nil {
+			progress = spinner.New(spinner.CharSets[14], 100*time.Millisecond, spinner.WithWriter(os.Stderr))
+		}
+		RunDockerComposeDown(ccmd, args)
+	},
+}
+
+var logsCmd = &cobra.Command{
+	Use:   "logs [service]",
+	Short: "Show logs for services",
+	Long:  `Displays log output from services. Equivalent to 'docker compose logs --follow'. Optionally specify a service name.`,
+	Args:  cobra.MaximumNArgs(1),
+	Run: func(ccmd *cobra.Command, args []string) {
+		// Spinner is not typically used for logs -follow, as it would interfere with log output.
+		// RunDockerComposeLogs can manage its own spinner if it only spins for the temp file creation.
+		// For now, let's assume RunDockerComposeLogs handles spinner appropriately for a log stream.
+		if progress == nil { // Still init for consistency, Run func can decide to stop it early
+			progress = spinner.New(spinner.CharSets[14], 100*time.Millisecond, spinner.WithWriter(os.Stderr))
+		}
+		RunDockerComposeLogs(ccmd, args)
+	},
+}
+
 // psCmd represents the ps command
 var psCmd = &cobra.Command{
 	Use:   "ps [options]",
@@ -295,30 +383,25 @@ var psCmd = &cobra.Command{
 	Args:  cobra.ArbitraryArgs,
 	Run: func(ccmd *cobra.Command, args []string) {
 		if progress == nil {
-			// Initialize spinner if it hasn't been
 			progress = spinner.New(spinner.CharSets[14], 100*time.Millisecond, spinner.WithWriter(os.Stderr))
 		}
 		RunDockerComposePs(ccmd, args)
 	},
 }
 
-// startCmd represents the start command
-var startCmd = &cobra.Command{
-	Use:   "start [service]",
-	Short: "Start services (equivalent to 'docker up')",
-	Long:  `Start specified or all services using Docker Compose.`,
-	Args:  cobra.MaximumNArgs(1),
+var listServicesCmd = &cobra.Command{
+	Use:   "list",
+	Short: "List available Docker Compose services defined in upctl.yaml",
+	Long:  `Parses the upctl.yaml file and lists all services defined under the 'services' key.`,
 	Run: func(ccmd *cobra.Command, args []string) {
 		if progress == nil {
-			// Initialize spinner if it hasn't been
-			// This can happen if initConfig wasn't called (e.g. in tests or specific command flows)
-			// For safety, although initConfig should always set it up in normal execution.
 			progress = spinner.New(spinner.CharSets[14], 100*time.Millisecond, spinner.WithWriter(os.Stderr))
 		}
-		// Call the public function from the cmd package
-		RunDockerComposeUp(ccmd, args)
+		RunDockerComposeListServices(ccmd, args)
 	},
 }
+
+// installCmd and importDBCmd are defined above, near rootCmd.AddCommand
 
 func initConfig() {
 	if cfgFile != "" {

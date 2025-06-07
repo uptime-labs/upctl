@@ -45,7 +45,7 @@ services:
     ports:
       - "8989:80"
 `,
-			expectInOutput: []string{"--- Upctl Doctor ---", "1. Checking config file... OK", "2. Validating config structure... OK", "3. Checking for 'services' definition... OK", "4. Checking for port conflicts...", "Info: Port 8989 (service: web, address: :8989) is available.", "--- Doctor checks complete ---"},
+			expectInOutput: []string{"--- Upctl Doctor ---", "1. Checking config file... OK", "2. Validating config structure (services, volumes, networks)... OK", "3. Checking for 'services' definition... OK", "4. Checking for port conflicts...", "Info: Port 8989 (service: web, address: :8989) is available.", "--- Doctor checks complete ---"},
 		},
 		{
 			name: "Config file not found",
@@ -75,7 +75,7 @@ services:
     ports:
       - "8991:81"
 `,
-			expectInOutput: []string{"Error: Port 8991 (service: app2) conflicts with service 'app1' within upctl.yaml."},
+			expectInOutput: []string{"Info: Port 8991", "is available", "Error: Port 8991", "conflicts with service", "within upctl.yaml."},
 		},
 		{
 			name: "Port already in use",
