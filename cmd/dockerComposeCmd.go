@@ -14,8 +14,8 @@ import (
 // DockerComposeConfig is the struct that holds the Docker Compose config values
 type DockerComposeConfig struct {
 	Services map[string]interface{} `mapstructure:"services" yaml:"services"`
-	Volumes  map[string]interface{} `mapstructure:"volumes" yaml:"volumes"`  // Removed omitempty
-	Networks map[string]interface{} `mapstructure:"networks" yaml:"networks"` // Removed omitempty
+	Volumes  map[string]interface{} `mapstructure:"volumes" yaml:"volumes"`
+	Networks map[string]interface{} `mapstructure:"networks" yaml:"networks"`
 }
 
 var (

@@ -97,7 +97,6 @@ func init() {
 	viper.SetDefault("author", "Gamunu Balagalla <gamunu@upltimelabs.io>")
 	viper.SetDefault("license", "(C) UpTimeLabs")
 
-	// Define installCmd and importDBCmd (assuming old Helm versions are gone or were never in this file)
 	installCmd = &cobra.Command{
 		Use:   "install [service]",
 		Short: "Install and start a specific service using Docker Compose",
@@ -125,17 +124,17 @@ func init() {
 	}
 
 	rootCmd.AddCommand(
-		upCmd,       // Renamed from startCmd
-		downCmd,     // New
-		logsCmd,     // New
-		psCmd,       // Existing
+		upCmd,           // Renamed from startCmd
+		downCmd,         // New
+		logsCmd,         // New
+		psCmd,           // Existing
 		listServicesCmd, // New
-		installCmd,  // New or updated
-		importDBCmd, // New or updated
-		configCmd,   // Existing
-		doctorCmd,   // Existing
-		validateCmd, // Existing
-		versionCmd,  // Existing
+		installCmd,      // New or updated
+		importDBCmd,     // New or updated
+		configCmd,       // Existing
+		doctorCmd,       // Existing
+		validateCmd,     // Existing
+		versionCmd,      // Existing
 	)
 }
 
@@ -256,10 +255,10 @@ func runDoctorChecks(cmd *cobra.Command, args []string) {
 	// Check 4: Port Conflict Analysis
 	fmt.Println("\n--- Port Conflict Analysis ---")
 
-	if cfg.Services != nil && len(cfg.Services) > 0 {
+	if len(cfg.Services) > 0 {
 		// Phase 1: Internal Conflict Detection
 		fmt.Println("Checking for internal port conflicts within upctl.yaml...")
-		portToServicesMap := make(map[string][]string) // Stores listenAddress -> serviceNames
+		portToServicesMap := make(map[string][]string)     // Stores listenAddress -> serviceNames
 		listenAddressToHostPort := make(map[string]string) // Stores listenAddress -> hostPort (for cleaner reporting)
 
 		for serviceName, serviceData := range cfg.Services {
@@ -356,13 +355,12 @@ func runDoctorChecks(cmd *cobra.Command, args []string) {
 			}
 		}
 		if !internalConflictsFound && checkedExternalPorts == 0 && len(cfg.Services) > 0 && len(portToServicesMap) > 0 {
-             // This case means ports were defined, but all were internally conflicted, so none were checked externally.
-             // Or, no ports were defined that could be checked (e.g. all invalid format)
-             // The condition for "no service ports defined" above should catch if portToServicesMap is empty.
-        } else if !internalConflictsFound && checkedExternalPorts == 0 && len(portToServicesMap) == 0 && len(cfg.Services) > 0{
-             fmt.Println("  Info: No valid, unique service ports found to check against host activity.")
-        }
-
+			// This case means ports were defined, but all were internally conflicted, so none were checked externally.
+			// Or, no ports were defined that could be checked (e.g. all invalid format)
+			// The condition for "no service ports defined" above should catch if portToServicesMap is empty.
+		} else if !internalConflictsFound && checkedExternalPorts == 0 && len(portToServicesMap) == 0 && len(cfg.Services) > 0 {
+			fmt.Println("  Info: No valid, unique service ports found to check against host activity.")
+		}
 
 	} else {
 		fmt.Println("  Info: No services defined to check for port conflicts.")

@@ -17,7 +17,7 @@ var configCmd = &cobra.Command{
 	Short: "Execute a configuration command",
 	Long: `Execute a configuration command. 
 
-Valid commands are: repo, docker
+Valid commands are: docker
 
 Example: upctl config repo
 
@@ -87,5 +87,4 @@ func configDocker() {
 	}
 
 	fmt.Println("Docker authentication configured successfully")
-	// Removed Kubernetes secret creation logic
 }
