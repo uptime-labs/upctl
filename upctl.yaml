@@ -7,31 +7,6 @@
 # The name is the name of the repository, and the url is the URL of the
 # repository.
 
-# The username and password are optional. If specified, the username and
-# password are used to authenticate with the repository.
-# The password should be a base64 encoded string.
-repositories:
-  - name: grafana
-    url: https://grafana.github.io/helm-charts
-
-# packages is a list of Helm packages to install. The name is the name of the
-# package, and the repo is the name of the repository to install the package
-# from. The namespace is the namespace to install the package into. If the
-# namespace does not exist, it will be created. If the namespace is not
-# specified, the package will be installed into the default namespace.
-packages:
-  - name: loki
-    repo: grafana/loki
-    namespace: loki
-    override: loki.yaml
-
-# overrides is a directory containing override files for packages.
-# package overrides are applied before the package is installed.
-# The name of the override file must match the name of the package.
-# The override file is a YAML file containing the values to override.
-# The values are merged with the default values of the package.
-overrides: ~/.upctl
-
 # teleport is the configuration for the Teleport client.
 # The host is the address of the Teleport server.
 # The aws_app is the name of the AWS application to use for AWS credentials.
@@ -40,11 +15,6 @@ teleport:
   host: teleport.example.com
   aws_app: app
   aws_role: role
-
-# kube_context is the name of the Kubernetes context to use.
-kube_context: colima
-# kube_config is the path to the kubeconfig file to use.
-kube_config: ~/.kube/config
 
 # docker_config is the configuration for the Docker pull secret.
 # The name is the name of the secret.
@@ -89,8 +59,7 @@ mysql:
 
 # docker_compose is the configuration for the Docker Compose functionality
 # It defines the services and configurations to be used with docker-compose
-docker_compose:
-  services:
+services:
     # Loki for log aggregation
     loki:
       container_name: upctl_loki

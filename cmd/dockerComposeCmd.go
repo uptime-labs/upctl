@@ -13,83 +13,40 @@ import (
 
 // DockerComposeConfig is the struct that holds the Docker Compose config values
 type DockerComposeConfig struct {
-	Version  string                 `mapstructure:"version" yaml:"version"`
 	Services map[string]interface{} `mapstructure:"services" yaml:"services"`
-	Volumes  map[string]interface{} `mapstructure:"volumes" yaml:"volumes,omitempty"`
-	Networks map[string]interface{} `mapstructure:"networks" yaml:"networks,omitempty"`
+	Volumes  map[string]interface{} `mapstructure:"volumes" yaml:"volumes"`
+	Networks map[string]interface{} `mapstructure:"networks" yaml:"networks"`
 }
 
 var (
 	dockerComposeConfig DockerComposeConfig
-	dockerComposeCmd    = &cobra.Command{
-		Use:   "docker",
-		Short: "Docker compose commands",
-		Long:  `Commands for managing Docker Compose environment`,
-	}
-
-	dockerComposeUpCmd = &cobra.Command{
-		Use:   "up [service]",
-		Short: "Start Docker Compose services",
-		Long:  `Start Docker Compose services defined in the configuration`,
-		Args:  cobra.MaximumNArgs(1),
-		Run:   runDockerComposeUp,
-	}
-
-	dockerComposeDownCmd = &cobra.Command{
-		Use:   "down",
-		Short: "Stop Docker Compose services",
-		Long:  `Stop Docker Compose services defined in the configuration`,
-		Run:   runDockerComposeDown,
-	}
-
-	dockerComposeListCmd = &cobra.Command{
-		Use:   "list",
-		Short: "List Docker Compose services",
-		Long:  `List Docker Compose services defined in the configuration`,
-		Run:   runDockerComposeList,
-	}
-
-	dockerComposeInstallCmd = &cobra.Command{
-		Use:   "install [service]",
-		Short: "Install and start a specific service",
-		Long:  `Install and start a specific service from the configuration`,
-		Args:  cobra.MaximumNArgs(1),
-		Run:   runDockerComposeInstall,
-	}
-
-	dockerComposeLogs = &cobra.Command{
-		Use:   "logs [service]",
-		Short: "Show logs for services",
-		Long:  `Show logs for Docker Compose services defined in the configuration`,
-		Args:  cobra.MaximumNArgs(1),
-		Run:   runDockerComposeLogs,
-	}
-
-	dockerComposeImportDBCmd = &cobra.Command{
-		Use:   "import-db",
-		Short: "Import a database",
-		Long:  `Import a database into a Docker MySQL container`,
-		Run:   runDockerImportDB,
-	}
 )
 
-func init() {
-	dockerComposeCmd.AddCommand(
-		dockerComposeUpCmd,
-		dockerComposeDownCmd,
-		dockerComposeListCmd,
-		dockerComposeInstallCmd,
-		dockerComposeLogs,
-		dockerComposeImportDBCmd,
-	)
+// RunDockerComposePs lists running docker compose services.
+func RunDockerComposePs(cmd *cobra.Command, args []string) {
+	progress.Start()
+	defer progress.Stop()
 
-	// Add the "all" flag to the install command for installing all services
-	dockerComposeInstallCmd.Flags().BoolP("all", "a", false, "Install all services")
+	tempComposePath, err := createTempComposeFile()
+	if err != nil {
+		fmt.Printf("Error creating temporary compose file: %s\n", err.Error())
+		os.Exit(1)
+	}
+	defer os.Remove(tempComposePath)
 
-	rootCmd.AddCommand(dockerComposeCmd)
+	fmt.Println("Listing Docker Compose services...")
+	composeArgs := []string{"compose", "-f", tempComposePath, "ps"}
+	composeArgs = append(composeArgs, args...) // Pass through any additional arguments
+
+	err = ExecuteCommand("docker", composeArgs...)
+	if err != nil {
+		fmt.Printf("Error listing Docker Compose services: %s\n", err.Error())
+		os.Exit(1)
+	}
 }
 
-func runDockerComposeUp(cmd *cobra.Command, args []string) {
+// RunDockerComposeUp starts docker compose services. It's public so it can be called from other packages.
+func RunDockerComposeUp(cmd *cobra.Command, args []string) {
 	progress.Start()
 	defer progress.Stop()
 
@@ -121,7 +78,8 @@ func runDockerComposeUp(cmd *cobra.Command, args []string) {
 	fmt.Println("Docker Compose services started successfully")
 }
 
-func runDockerComposeDown(cmd *cobra.Command, args []string) {
+// RunDockerComposeDown stops Docker Compose services.
+func RunDockerComposeDown(cmd *cobra.Command, args []string) {
 	progress.Start()
 	defer progress.Stop()
 
@@ -144,9 +102,10 @@ func runDockerComposeDown(cmd *cobra.Command, args []string) {
 	fmt.Println("Docker Compose services stopped successfully")
 }
 
-func runDockerComposeList(cmd *cobra.Command, args []string) {
+// RunDockerComposeListServices lists available Docker Compose services defined in the configuration.
+func RunDockerComposeListServices(cmd *cobra.Command, args []string) {
 	// Load docker compose config from viper
-	err := viper.UnmarshalKey("docker_compose", &dockerComposeConfig)
+	err := viper.Unmarshal(&dockerComposeConfig)
 	if err != nil {
 		fmt.Printf("Error loading docker compose config: %s\n", err.Error())
 		os.Exit(1)
@@ -158,8 +117,8 @@ func runDockerComposeList(cmd *cobra.Command, args []string) {
 	}
 }
 
-// runDockerComposeInstall handles the installation of specific or all services
-func runDockerComposeInstall(cmd *cobra.Command, args []string) {
+// RunDockerComposeInstall handles the installation of specific or all services.
+func RunDockerComposeInstall(cmd *cobra.Command, args []string) {
 	progress.Start()
 	defer progress.Stop()
 
@@ -180,7 +139,7 @@ func runDockerComposeInstall(cmd *cobra.Command, args []string) {
 	defer os.Remove(tempComposePath)
 
 	// Load the services from the config
-	err = viper.UnmarshalKey("docker_compose", &dockerComposeConfig)
+	err = viper.Unmarshal(&dockerComposeConfig)
 	if err != nil {
 		fmt.Printf("Error loading docker compose config: %s\n", err.Error())
 		os.Exit(1)
@@ -212,8 +171,8 @@ func runDockerComposeInstall(cmd *cobra.Command, args []string) {
 	}
 }
 
-// runDockerComposeLogs shows logs for one or all services
-func runDockerComposeLogs(cmd *cobra.Command, args []string) {
+// RunDockerComposeLogs shows logs for one or all services.
+func RunDockerComposeLogs(cmd *cobra.Command, args []string) {
 	// Create a temporary compose file
 	tempComposePath, err := createTempComposeFile()
 	if err != nil {
@@ -242,8 +201,8 @@ func runDockerComposeLogs(cmd *cobra.Command, args []string) {
 }
 
 // createTempComposeFile creates a temporary docker-compose.yml file from the config
-// runDockerImportDB handles importing a database into a Docker MySQL container
-func runDockerImportDB(cmd *cobra.Command, args []string) {
+// RunDockerImportDB handles importing a database into a Docker MySQL container.
+func RunDockerImportDB(cmd *cobra.Command, args []string) {
 	progress.Start()
 	defer progress.Stop()
 
@@ -351,9 +310,49 @@ func runDockerImportDB(cmd *cobra.Command, args []string) {
 
 func createTempComposeFile() (string, error) {
 	// Load docker compose config from viper
-	err := viper.UnmarshalKey("docker_compose", &dockerComposeConfig)
+	err := viper.Unmarshal(&dockerComposeConfig)
 	if err != nil {
-		return "", fmt.Errorf("error loading docker compose config: %s", err.Error())
+		// Even if general unmarshal fails, proceed to try to get specific keys.
+		// Or, return error: return "", fmt.Errorf("error initial unmarshal: %s", err.Error())
+		// For this fix, let's assume specific Get calls are the source of truth for these keys.
+		// Initialize struct fields if they are nil (they should be if Unmarshal failed or didn't populate)
+		if dockerComposeConfig.Services == nil {
+			dockerComposeConfig.Services = make(map[string]interface{})
+		}
+		if dockerComposeConfig.Volumes == nil {
+			dockerComposeConfig.Volumes = make(map[string]interface{})
+		}
+		if dockerComposeConfig.Networks == nil {
+			dockerComposeConfig.Networks = make(map[string]interface{})
+		}
+	}
+
+	// Explicitly ensure top-level keys are populated
+	if viper.IsSet("services") {
+		servicesData := viper.Get("services")
+		if servicesMap, ok := servicesData.(map[string]interface{}); ok {
+			dockerComposeConfig.Services = servicesMap
+		} else {
+			fmt.Fprintf(os.Stderr, "Warning: 'services' key in upctl.yaml is not in the expected map[string]interface{} format.\n")
+		}
+	}
+
+	if viper.IsSet("volumes") {
+		volumesData := viper.Get("volumes")
+		if volumesMap, ok := volumesData.(map[string]interface{}); ok {
+			dockerComposeConfig.Volumes = volumesMap
+		} else {
+			fmt.Fprintf(os.Stderr, "Warning: 'volumes' key in upctl.yaml is not in the expected map[string]interface{} format.\n")
+		}
+	}
+
+	if viper.IsSet("networks") {
+		networksData := viper.Get("networks")
+		if networksMap, ok := networksData.(map[string]interface{}); ok {
+			dockerComposeConfig.Networks = networksMap
+		} else {
+			fmt.Fprintf(os.Stderr, "Warning: 'networks' key in upctl.yaml is not in the expected map[string]interface{} format.\n")
+		}
 	}
 
 	// Create a temporary file
