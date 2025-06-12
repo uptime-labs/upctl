@@ -45,7 +45,7 @@ type ExecuteCommandResult struct {
 }
 
 // ExecuteCommand executes the given CLI command and streams the output in real time
-func ExecuteCommand(command string, args ...string) error {
+var ExecuteCommand = func(command string, args ...string) error {
 	var result ExecuteCommandResult
 
 	cmd := exec.Command(command, args...)

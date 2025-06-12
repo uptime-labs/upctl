@@ -110,6 +110,12 @@ func init() {
 		},
 	}
 	installCmd.Flags().BoolP("all", "a", false, "Install all services")
+	// Add --all flag to upCmd
+	upCmd.Flags().BoolP("all", "a", false, "Start all services")
+	// Add --all flag to downCmd
+	downCmd.Flags().BoolP("all", "a", false, "Stop all services")
+	// Add --all flag to logsCmd
+	logsCmd.Flags().BoolP("all", "a", false, "Get logs for all services")
 
 	importDBCmd = &cobra.Command{
 		Use:   "import-db",
@@ -372,41 +378,90 @@ func runDoctorChecks(cmd *cobra.Command, args []string) {
 var upCmd = &cobra.Command{
 	Use:   "up [service]",
 	Short: "Start specified or all services using Docker Compose",
-	Long:  `Starts the services defined in your upctl.yaml file using Docker Compose. Equivalent to 'docker compose up -d'. You can optionally specify a single service to start.`,
-	Args:  cobra.MaximumNArgs(1),
-	Run: func(ccmd *cobra.Command, args []string) {
+	Long:  `Starts the services defined in your upctl.yaml file using Docker Compose. Equivalent to 'docker compose up -d'. You can optionally specify a single service to start, or use the --all flag to start all services.`,
+	Args:  cobra.ArbitraryArgs, // Changed to ArbitraryArgs for manual validation
+	RunE: func(ccmd *cobra.Command, args []string) error { // Changed to RunE
+		allServices, _ := ccmd.Flags().GetBool("all")
+		numArgs := len(args)
+
+		if allServices {
+			if numArgs > 0 {
+				return fmt.Errorf("cannot specify service names when the --all flag is used")
+			}
+		} else {
+			if numArgs == 0 {
+				return fmt.Errorf("you must specify a service name or use the --all flag")
+			}
+			if numArgs > 1 {
+				return fmt.Errorf("too many arguments, expected 1 service name or --all flag (got %d)", numArgs)
+			}
+		}
+
 		if progress == nil {
 			progress = spinner.New(spinner.CharSets[14], 100*time.Millisecond, spinner.WithWriter(os.Stderr))
 		}
 		RunDockerComposeUp(ccmd, args)
+		return nil // Return nil on success
 	},
 }
 
 var downCmd = &cobra.Command{
-	Use:   "down",
+	Use:   "down [service]",
 	Short: "Stop Docker Compose services",
-	Long:  `Stops and removes containers, networks, volumes, and images created by 'up'. Equivalent to 'docker compose down'.`,
-	Run: func(ccmd *cobra.Command, args []string) {
+	Long:  `Stops and removes containers, networks, volumes, and images created by 'up'. Equivalent to 'docker compose down'. You can optionally specify a single service to stop, or use --all to stop all services.`,
+	Args:  cobra.ArbitraryArgs,
+	RunE: func(ccmd *cobra.Command, args []string) error {
+		allServices, _ := ccmd.Flags().GetBool("all")
+		numArgs := len(args)
+
+		if allServices {
+			if numArgs > 0 {
+				return fmt.Errorf("cannot specify service names when the --all flag is used for 'down'")
+			}
+		} else {
+			if numArgs == 0 {
+				return fmt.Errorf("you must specify a service name or use the --all flag for 'down'")
+			}
+			if numArgs > 1 {
+				return fmt.Errorf("too many arguments to 'down', expected 1 service name or --all flag (got %d)", numArgs)
+			}
+		}
+
 		if progress == nil {
 			progress = spinner.New(spinner.CharSets[14], 100*time.Millisecond, spinner.WithWriter(os.Stderr))
 		}
 		RunDockerComposeDown(ccmd, args)
+		return nil
 	},
 }
 
 var logsCmd = &cobra.Command{
 	Use:   "logs [service]",
 	Short: "Show logs for services",
-	Long:  `Displays log output from services. Equivalent to 'docker compose logs --follow'. Optionally specify a service name.`,
-	Args:  cobra.MaximumNArgs(1),
-	Run: func(ccmd *cobra.Command, args []string) {
-		// Spinner is not typically used for logs -follow, as it would interfere with log output.
-		// RunDockerComposeLogs can manage its own spinner if it only spins for the temp file creation.
-		// For now, let's assume RunDockerComposeLogs handles spinner appropriately for a log stream.
-		if progress == nil { // Still init for consistency, Run func can decide to stop it early
+	Long:  `Displays log output from services. Equivalent to 'docker compose logs --follow'. Optionally specify a service name, or use --all to view logs for all services.`,
+	Args:  cobra.ArbitraryArgs,
+	RunE: func(ccmd *cobra.Command, args []string) error {
+		allServices, _ := ccmd.Flags().GetBool("all")
+		numArgs := len(args)
+
+		if allServices {
+			if numArgs > 0 {
+				return fmt.Errorf("cannot specify service names when the --all flag is used for 'logs'")
+			}
+		} else {
+			if numArgs == 0 {
+				return fmt.Errorf("you must specify a service name or use the --all flag for 'logs'")
+			}
+			if numArgs > 1 {
+				return fmt.Errorf("too many arguments to 'logs', expected 1 service name or --all flag (got %d)", numArgs)
+			}
+		}
+
+		if progress == nil {
 			progress = spinner.New(spinner.CharSets[14], 100*time.Millisecond, spinner.WithWriter(os.Stderr))
 		}
 		RunDockerComposeLogs(ccmd, args)
+		return nil
 	},
 }
 

@@ -214,32 +214,45 @@ upctl install --docker --all
 
 ## 7.3 Docker Compose Commands
 
-Use the Docker Compose subcommands directly:
+Manage your Docker Compose services:
 
 ```bash
-# List available services
-upctl docker list
+# List available services (defined in your upctl.yaml)
+upctl list
 
-# Start a service
-upctl docker up grafana
+# Start a specific service (e.g., grafana)
+# A service name is required if --all is not used.
+upctl up grafana
 
 # Start all services
-upctl docker up
+upctl up --all
 
-# Stop a service
-upctl docker down grafana
+# Stop a specific service (e.g., grafana)
+# A service name is required if --all is not used.
+# Note: 'docker compose down' itself typically stops all services defined in the compose file.
+# Specifying a service name with 'upctl down <service_name>' might be handled by upctl
+# to only target specific actions if possible, or the underlying 'docker compose down'
+# command might ignore the service name and stop all services.
+# Refer to 'upctl down --help' for the most current behavior.
+upctl down grafana
 
 # Stop all services
-upctl docker down
+upctl down --all
 
-# View logs
-upctl docker logs grafana
+# View logs for a specific service (e.g., grafana)
+# A service name is required if --all is not used.
+upctl logs grafana
+
+# View logs for all services
+upctl logs --all
 ```
 
 ## 7.4 Import database with Docker Compose
 
-Import a database into a Docker MySQL container:
+Import a database into a Docker MySQL container (ensure the MySQL service is defined in your Docker Compose setup within `upctl.yaml`):
 
 ```bash
-upctl import-db --docker
+upctl import-db
 ```
+*Note: The `--docker` flag for `import-db` might be legacy if the global context determines Docker Compose usage. Verify with `upctl import-db --help`.*
+*TODO: Clarify if `--docker` is still needed for `import-db` or if context implies it.*
