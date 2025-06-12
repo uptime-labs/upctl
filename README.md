@@ -227,23 +227,24 @@ upctl up grafana
 # Start all services
 upctl up --all
 
-# Stop a service (Note: 'down' typically stops all services,
-# service-specific stopping might depend on future enhancements or specific flags for 'down')
-# The following is an example assuming 'down' might support a service name.
-# Check 'upctl down --help' for actual usage.
+# Stop a specific service (e.g., grafana)
+# A service name is required if --all is not used.
+# Note: 'docker compose down' itself typically stops all services defined in the compose file.
+# Specifying a service name with 'upctl down <service_name>' might be handled by upctl
+# to only target specific actions if possible, or the underlying 'docker compose down'
+# command might ignore the service name and stop all services.
+# Refer to 'upctl down --help' for the most current behavior.
 upctl down grafana
-# TODO: Verify 'upctl down' behavior and update docs accordingly. Current focus is 'up'.
 
 # Stop all services
-upctl down
+upctl down --all
 
 # View logs for a specific service (e.g., grafana)
+# A service name is required if --all is not used.
 upctl logs grafana
 
 # View logs for all services
-upctl logs
-# TODO: Verify if 'upctl logs' without args shows all logs or requires a flag.
-# Current focus is 'up'.
+upctl logs --all
 ```
 
 ## 7.4 Import database with Docker Compose

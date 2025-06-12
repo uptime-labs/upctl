@@ -300,17 +300,63 @@ func InitializeTestCmd() (*cobra.Command, error) {
         },
     }
     testUpCmd.Flags().BoolP("all", "a", false, "Start all services")
-    testRootCmd.AddCommand(testUpCmd)
 
-    // Other commands (install, importDBCmd, etc.) would be added here if testing them
-    // For now, only 'up' is needed.
+    // downCmd definition (copied and adapted from root.go)
+    var testDownCmd = &cobra.Command{
+        Use:   "down [service]",
+        Short: "Stop Docker Compose services",
+        Args:  cobra.ArbitraryArgs,
+        RunE: func(ccmd *cobra.Command, args []string) error {
+            allServices, _ := ccmd.Flags().GetBool("all")
+            numArgs := len(args)
+            if allServices {
+                if numArgs > 0 { return fmt.Errorf("cannot specify service names when the --all flag is used for 'down'") }
+            } else {
+                if numArgs == 0 { return fmt.Errorf("you must specify a service name or use the --all flag for 'down'") }
+                if numArgs > 1 { return fmt.Errorf("too many arguments to 'down', expected 1 service name or --all flag (got %d)", numArgs) }
+            }
+            if progress == nil { progress = spinner.New(spinner.CharSets[14], 100*time.Millisecond, spinner.WithWriter(io.Discard)) }
+            RunDockerComposeDown(ccmd, args) // Will use mocked ExecuteCommand
+            return nil
+        },
+    }
+    testDownCmd.Flags().BoolP("all", "a", false, "Stop all services")
+
+    // logsCmd definition (copied and adapted from root.go)
+    var testLogsCmd = &cobra.Command{
+        Use:   "logs [service]",
+        Short: "Show logs for services",
+        Args:  cobra.ArbitraryArgs,
+        RunE: func(ccmd *cobra.Command, args []string) error {
+            allServices, _ := ccmd.Flags().GetBool("all")
+            numArgs := len(args)
+            if allServices {
+                if numArgs > 0 { return fmt.Errorf("cannot specify service names when the --all flag is used for 'logs'") }
+            } else {
+                if numArgs == 0 { return fmt.Errorf("you must specify a service name or use the --all flag for 'logs'") }
+                if numArgs > 1 { return fmt.Errorf("too many arguments to 'logs', expected 1 service name or --all flag (got %d)", numArgs) }
+            }
+            if progress == nil { progress = spinner.New(spinner.CharSets[14], 100*time.Millisecond, spinner.WithWriter(io.Discard)) }
+            RunDockerComposeLogs(ccmd, args) // Will use mocked ExecuteCommand
+            return nil
+        },
+    }
+    testLogsCmd.Flags().BoolP("all", "a", false, "Get logs for all services")
+
+    testRootCmd.AddCommand(testUpCmd, testDownCmd, testLogsCmd)
 
     return testRootCmd, nil
 }
 
-
+// This is line 603 in the previous file listing.
+// The following lines were missing.
 func TestCreateTempComposeFile_NoVersionKey(t *testing.T) {
-	viper.Reset() // Ensure clean viper state
+	viper.Reset() // Ensure clean viper state for this specific test
+
+	// This test should ideally not interact with global cfgFile.
+	// If createTempComposeFile indirectly calls initConfig, it might.
+	// For now, we assume TestMain handles overall Viper state, and this test
+	// just needs its own mock config loaded.
 
 	mockYAMLConfig := `
 services:
@@ -328,15 +374,16 @@ networks:
   front-tier: {}
   back-tier: {}
 `
-	// Load mock config into viper
+	// Load mock config into viper for this test
 	viper.SetConfigType("yaml")
 	err := viper.ReadConfig(strings.NewReader(mockYAMLConfig))
 	if err != nil {
-		t.Fatalf("Failed to read mock YAML config: %v", err)
+		t.Fatalf("Failed to read mock YAML config for TestCreateTempComposeFile: %v", err)
 	}
-
-	// createTempComposeFile will call viper.Unmarshal into the global dockerComposeConfig.
-	// The test should not do it beforehand.
+	// Ensure dockerComposeConfig is populated for createTempComposeFile
+	if err := viper.Unmarshal(&dockerComposeConfig); err != nil {
+		t.Fatalf("Failed to unmarshal mock config into dockerComposeConfig for TestCreateTempComposeFile: %v", err)
+	}
 
 	// Call the function to be tested
 	tempFilePath, err := createTempComposeFile()
@@ -346,9 +393,9 @@ networks:
 	defer os.Remove(tempFilePath) // Clean up the temporary file
 
 	// Read the content of the generated temporary file
-	generatedYAMLBytes, err := os.ReadFile(tempFilePath)
-	if err != nil {
-		t.Fatalf("Failed to read temporary compose file '%s': %v", tempFilePath, err)
+	generatedYAMLBytes, errR := os.ReadFile(tempFilePath)
+	if errR != nil {
+		t.Fatalf("Failed to read temporary compose file '%s': %v", tempFilePath, errR)
 	}
 
 	// Unmarshal the generated YAML to check its structure
@@ -387,5 +434,172 @@ networks:
 	_, networksExists := generatedContent["networks"]
 	if !networksExists {
 		t.Errorf("'networks' key not found in generated docker-compose.yml")
+	}
+}
+
+// Tests for downCmd
+func TestRunDockerComposeDown_AllServices(t *testing.T) {
+	setup(t)
+	defer teardown()
+	testRootCmd, _ := InitializeTestCmd()
+
+	_, err := executeCommandCobra(testRootCmd, "down", "--all")
+	if err != nil {
+		t.Fatalf("down --all failed: %v", err)
+	}
+	if mockExecuteCmdInfo.Calls == 0 {
+		t.Error("ExecuteCommand was not called for 'down --all'")
+	} else {
+		// Expected: docker compose -f <tempfile> down
+		// Args[2] is the temp file path, which is dynamic.
+		expectedArgsPrefix := []string{"compose", "-f"}
+		expectedArgsSuffix := []string{"down"}
+		if !(mockExecuteCmdInfo.Command == "docker" &&
+			equalSlices(mockExecuteCmdInfo.Args[:2], expectedArgsPrefix) &&
+			equalSlices(mockExecuteCmdInfo.Args[3:4], expectedArgsSuffix) && // Args[3] should be "down"
+			len(mockExecuteCmdInfo.Args) == 4) { // docker compose -f <file> down
+			t.Errorf("Expected 'docker compose -f <file> down', got command '%s' with args %v", mockExecuteCmdInfo.Command, mockExecuteCmdInfo.Args)
+		}
+	}
+}
+
+func TestRunDockerComposeDown_SpecificService(t *testing.T) {
+	setup(t)
+	defer teardown()
+	testRootCmd, _ := InitializeTestCmd()
+
+	_, err := executeCommandCobra(testRootCmd, "down", "service1")
+	if err != nil {
+		t.Fatalf("down service1 failed: %v", err)
+	}
+	if mockExecuteCmdInfo.Calls == 0 {
+		t.Error("ExecuteCommand was not called for 'down service1'")
+	} else {
+		// Expected: docker compose -f <tempfile> down service1
+		expectedArgsPrefix := []string{"compose", "-f"}
+		expectedArgsSuffix := []string{"down", "service1"}
+		if !(mockExecuteCmdInfo.Command == "docker" &&
+			equalSlices(mockExecuteCmdInfo.Args[:2], expectedArgsPrefix) &&
+			equalSlices(mockExecuteCmdInfo.Args[3:5], expectedArgsSuffix) && // Args[3] is "down", Args[4] is "service1"
+			len(mockExecuteCmdInfo.Args) == 5) { // docker compose -f <file> down service1
+			t.Errorf("Expected 'docker compose -f <file> down service1', got command '%s' with args %v", mockExecuteCmdInfo.Command, mockExecuteCmdInfo.Args)
+		}
+	}
+}
+
+func TestRunDockerComposeDown_NoServiceNoAll(t *testing.T) {
+	setup(t)
+	defer teardown()
+	testRootCmd, _ := InitializeTestCmd()
+	output, err := executeCommandCobra(testRootCmd, "down")
+	if err == nil {
+		t.Fatal("Expected error for 'down' with no args and no --all, but got none")
+	}
+	expectedErrorMsg := "you must specify a service name or use the --all flag for 'down'"
+	if !strings.Contains(output, expectedErrorMsg) {
+		t.Errorf("Expected error message '%s', got '%s'", expectedErrorMsg, output)
+	}
+	if mockExecuteCmdInfo.Calls > 0 {
+		t.Errorf("ExecuteCommand should not have been called, but was called %d times", mockExecuteCmdInfo.Calls)
+	}
+}
+
+func TestRunDockerComposeDown_AllAndService(t *testing.T) {
+	setup(t)
+	defer teardown()
+	testRootCmd, _ := InitializeTestCmd()
+	output, err := executeCommandCobra(testRootCmd, "down", "--all", "service1")
+	if err == nil {
+		t.Fatal("Expected error for 'down --all service1', but got none")
+	}
+	expectedErrorMsg := "cannot specify service names when the --all flag is used for 'down'"
+	if !strings.Contains(output, expectedErrorMsg) {
+		t.Errorf("Expected error message '%s', got '%s'", expectedErrorMsg, output)
+	}
+	if mockExecuteCmdInfo.Calls > 0 {
+		t.Errorf("ExecuteCommand should not have been called, but was called %d times", mockExecuteCmdInfo.Calls)
+	}
+}
+
+// Tests for logsCmd
+func TestRunDockerComposeLogs_AllServices(t *testing.T) {
+	setup(t)
+	defer teardown()
+	testRootCmd, _ := InitializeTestCmd()
+
+	_, err := executeCommandCobra(testRootCmd, "logs", "--all")
+	if err != nil {
+		t.Fatalf("logs --all failed: %v", err)
+	}
+	if mockExecuteCmdInfo.Calls == 0 {
+		t.Error("ExecuteCommand was not called for 'logs --all'")
+	} else {
+		// Expected: docker compose -f <tempfile> logs --follow
+		expectedArgsPrefix := []string{"compose", "-f"}
+		expectedArgsSuffix := []string{"logs", "--follow"}
+		if !(mockExecuteCmdInfo.Command == "docker" &&
+			equalSlices(mockExecuteCmdInfo.Args[:2], expectedArgsPrefix) &&
+			equalSlices(mockExecuteCmdInfo.Args[3:5], expectedArgsSuffix) && // Args[3] is "logs", Args[4] is "--follow"
+			len(mockExecuteCmdInfo.Args) == 5) { // docker compose -f <file> logs --follow
+			t.Errorf("Expected 'docker compose -f <file> logs --follow', got command '%s' with args %v", mockExecuteCmdInfo.Command, mockExecuteCmdInfo.Args)
+		}
+	}
+}
+
+func TestRunDockerComposeLogs_SpecificService(t *testing.T) {
+	setup(t)
+	defer teardown()
+	testRootCmd, _ := InitializeTestCmd()
+
+	_, err := executeCommandCobra(testRootCmd, "logs", "service1")
+	if err != nil {
+		t.Fatalf("logs service1 failed: %v", err)
+	}
+	if mockExecuteCmdInfo.Calls == 0 {
+		t.Error("ExecuteCommand was not called for 'logs service1'")
+	} else {
+		// Expected: docker compose -f <tempfile> logs --follow service1
+		expectedArgsPrefix := []string{"compose", "-f"}
+		expectedArgsSuffix := []string{"logs", "--follow", "service1"}
+		if !(mockExecuteCmdInfo.Command == "docker" &&
+			equalSlices(mockExecuteCmdInfo.Args[:2], expectedArgsPrefix) &&
+			equalSlices(mockExecuteCmdInfo.Args[3:6], expectedArgsSuffix) && // Args[3] is "logs", Args[4] is "--follow", Args[5] is "service1"
+			len(mockExecuteCmdInfo.Args) == 6) { // docker compose -f <file> logs --follow service1
+			t.Errorf("Expected 'docker compose -f <file> logs --follow service1', got command '%s' with args %v", mockExecuteCmdInfo.Command, mockExecuteCmdInfo.Args)
+		}
+	}
+}
+
+func TestRunDockerComposeLogs_NoServiceNoAll(t *testing.T) {
+	setup(t)
+	defer teardown()
+	testRootCmd, _ := InitializeTestCmd()
+	output, err := executeCommandCobra(testRootCmd, "logs")
+	if err == nil {
+		t.Fatal("Expected error for 'logs' with no args and no --all, but got none")
+	}
+	expectedErrorMsg := "you must specify a service name or use the --all flag for 'logs'"
+	if !strings.Contains(output, expectedErrorMsg) {
+		t.Errorf("Expected error message '%s', got '%s'", expectedErrorMsg, output)
+	}
+	if mockExecuteCmdInfo.Calls > 0 {
+		t.Errorf("ExecuteCommand should not have been called, but was called %d times", mockExecuteCmdInfo.Calls)
+	}
+}
+
+func TestRunDockerComposeLogs_AllAndService(t *testing.T) {
+	setup(t)
+	defer teardown()
+	testRootCmd, _ := InitializeTestCmd()
+	output, err := executeCommandCobra(testRootCmd, "logs", "--all", "service1")
+	if err == nil {
+		t.Fatal("Expected error for 'logs --all service1', but got none")
+	}
+	expectedErrorMsg := "cannot specify service names when the --all flag is used for 'logs'"
+	if !strings.Contains(output, expectedErrorMsg) {
+		t.Errorf("Expected error message '%s', got '%s'", expectedErrorMsg, output)
+	}
+	if mockExecuteCmdInfo.Calls > 0 {
+		t.Errorf("ExecuteCommand should not have been called, but was called %d times", mockExecuteCmdInfo.Calls)
 	}
 }

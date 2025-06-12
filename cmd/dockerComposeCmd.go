@@ -98,7 +98,24 @@ func RunDockerComposeDown(cmd *cobra.Command, args []string) {
 
 	// Stop docker compose
 	fmt.Println("Stopping Docker Compose services...")
-	err = ExecuteCommand("docker", "compose", "-f", tempComposePath, "down")
+
+	allServices, _ := cmd.Flags().GetBool("all")
+
+	composeArgs := []string{"compose", "-f", tempComposePath, "down"}
+
+	// If a specific service is specified (and --all is not set)
+	// Validation in root.go ensures that if !allServices, len(args) == 1.
+	// If allServices is true, len(args) == 0.
+	if !allServices && len(args) > 0 {
+		// As per subtask, add service name. Note: `docker compose down <service>` is not standard.
+		// Standard commands are `stop <service>` then `rm <service>`.
+		// This will likely result in `down` ignoring the service name or erroring.
+		// However, fulfilling the request.
+		composeArgs = append(composeArgs, args[0])
+	}
+	// If allServices is true, no service name is appended.
+
+	err = ExecuteCommand("docker", composeArgs...)
 	if err != nil {
 		fmt.Printf("Error stopping Docker Compose services: %s\n", err.Error())
 		os.Exit(1)
@@ -186,16 +203,18 @@ func RunDockerComposeLogs(cmd *cobra.Command, args []string) {
 	}
 	defer os.Remove(tempComposePath)
 
-	var logArgs []string
-	logArgs = append(logArgs, "compose", "-f", tempComposePath, "logs")
+	allServicesLogs, _ := cmd.Flags().GetBool("all")
 
-	// If a specific service is specified
-	if len(args) > 0 {
+	var logArgs []string
+	logArgs = append(logArgs, "compose", "-f", tempComposePath, "logs", "--follow")
+
+	// If a specific service is specified (and --all is not set)
+	// Validation in root.go ensures that if !allServicesLogs, len(args) == 1.
+	// If allServicesLogs is true, len(args) == 0.
+	if !allServicesLogs && len(args) > 0 {
 		logArgs = append(logArgs, args[0])
 	}
-
-	// Show logs with follow option
-	logArgs = append(logArgs, "--follow")
+	// If allServicesLogs is true, no service name is appended, showing all logs.
 
 	// Execute the command to show logs
 	err = ExecuteCommand("docker", logArgs...)
