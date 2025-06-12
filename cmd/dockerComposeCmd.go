@@ -61,13 +61,18 @@ func RunDockerComposeUp(cmd *cobra.Command, args []string) {
 	// Start docker compose
 	fmt.Println("Starting Docker Compose services...")
 
+	allServices, _ := cmd.Flags().GetBool("all") // Get the --all flag
+
 	var composeArgs []string
 	composeArgs = append(composeArgs, "compose", "-f", tempComposePath, "up", "-d")
 
-	// If a specific service is specified
-	if len(args) > 0 {
+	// If a specific service is specified (and --all is not set)
+	// The validation in cmd/root.go's upCmd ensures that if allServices is true, len(args) will be 0.
+	// And if allServices is false, len(args) will be 1.
+	if !allServices && len(args) > 0 {
 		composeArgs = append(composeArgs, args[0])
 	}
+	// If allServices is true, args will be empty, and no service name is appended, so all services defined in the compose file are started.
 
 	err = ExecuteCommand("docker", composeArgs...)
 	if err != nil {

@@ -110,6 +110,8 @@ func init() {
 		},
 	}
 	installCmd.Flags().BoolP("all", "a", false, "Install all services")
+	// Add --all flag to upCmd
+	upCmd.Flags().BoolP("all", "a", false, "Start all services")
 
 	importDBCmd = &cobra.Command{
 		Use:   "import-db",
@@ -372,13 +374,30 @@ func runDoctorChecks(cmd *cobra.Command, args []string) {
 var upCmd = &cobra.Command{
 	Use:   "up [service]",
 	Short: "Start specified or all services using Docker Compose",
-	Long:  `Starts the services defined in your upctl.yaml file using Docker Compose. Equivalent to 'docker compose up -d'. You can optionally specify a single service to start.`,
-	Args:  cobra.MaximumNArgs(1),
-	Run: func(ccmd *cobra.Command, args []string) {
+	Long:  `Starts the services defined in your upctl.yaml file using Docker Compose. Equivalent to 'docker compose up -d'. You can optionally specify a single service to start, or use the --all flag to start all services.`,
+	Args:  cobra.ArbitraryArgs, // Changed to ArbitraryArgs for manual validation
+	RunE: func(ccmd *cobra.Command, args []string) error { // Changed to RunE
+		allServices, _ := ccmd.Flags().GetBool("all")
+		numArgs := len(args)
+
+		if allServices {
+			if numArgs > 0 {
+				return fmt.Errorf("cannot specify service names when the --all flag is used")
+			}
+		} else {
+			if numArgs == 0 {
+				return fmt.Errorf("you must specify a service name or use the --all flag")
+			}
+			if numArgs > 1 {
+				return fmt.Errorf("too many arguments, expected 1 service name or --all flag (got %d)", numArgs)
+			}
+		}
+
 		if progress == nil {
 			progress = spinner.New(spinner.CharSets[14], 100*time.Millisecond, spinner.WithWriter(os.Stderr))
 		}
 		RunDockerComposeUp(ccmd, args)
+		return nil // Return nil on success
 	},
 }
 
