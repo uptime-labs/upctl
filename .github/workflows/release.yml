@@ -55,19 +55,3 @@ jobs:
           fail_on_unmatched_files: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Update install.sh
-        run: |
-          sed -i "s/VERSION=.*/VERSION=${{ env.RELEASE_VERSION }}/" scripts/install.sh
-          
-      - name: Commit updated install script
-        uses: EndBug/add-and-commit@v9
-        with:
-          add: 'scripts/install.sh'
-          author_name: GitHub Action
-          author_email: action@github.com
-          message: 'Update install.sh to version ${{ env.RELEASE_VERSION }}'
-          branch: main # Add this line
-          push: true
-        env:
-          GITHUB_HEAD_REF: ${{ github.ref_name }}

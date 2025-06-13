@@ -52,18 +52,6 @@ brew tap uptime-labs/upctl
 brew install upctl
 ```
 
-### Easy Linux Installation Script (All Distributions)
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/uptime-labs/upctl/main/scripts/install.sh | bash
-```
-
-Alternatively, you can specify a particular version:
-
-```bash
-VERSION=0.8.0 curl -fsSL https://raw.githubusercontent.com/uptime-labs/upctl/main/scripts/install.sh | bash
-```
-
 ### Manual Installation
 
 Visit the [releases page](https://github.com/uptime-labs/upctl/releases) and download the `upctl` version for your operating system (e.g., Linux, macOS).
