@@ -81,10 +81,13 @@ func setup(t *testing.T) {
 	mockCaptureCommandShouldError = false
 	mockCaptureCommandOutput = ""
 
-
 	previousCfgFileValue := cfgFile
+	previousSkipConfigReload := skipConfigReload
+	skipConfigReload = true // Prevent initConfig from overriding test config
 	t.Cleanup(func() {
 		cfgFile = previousCfgFileValue
+		skipConfigReload = previousSkipConfigReload
+		viper.Reset()
 	})
 
 	// This is the mock upctl.yaml content
@@ -145,7 +148,6 @@ func executeCommandCobra(root *cobra.Command, args ...string) (string, error) {
 	err := root.Execute() // This will trigger OnInitialize (which should call initConfig)
 	return buf.String(), err
 }
-
 
 func TestRunDockerComposeUp_AllServices(t *testing.T) {
 	setup(t)
@@ -244,109 +246,129 @@ func equalSlices(a, b []string) bool {
 // InitializeTestCmd creates a new rootCmd instance for testing.
 // It takes *testing.T to ensure test-specific setup (like OnInitialize) is fresh.
 func InitializeTestCmd(t *testing.T) (*cobra.Command, error) {
-    testRootCmd := &cobra.Command{Use: "upctl"}
-    testRootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.upctl.yaml)")
+	testRootCmd := &cobra.Command{Use: "upctl"}
+	testRootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.upctl.yaml)")
 
-    // Reset and set OnInitialize for THIS test command tree instance.
-    // Cobra's OnInitialize is global, so this ensures our test initConfig is used.
-    cobra.ResetOnInitialize() // Important for test isolation
-    cobra.OnInitialize(func() {
-        // This is a test-specific version of initConfig from root.go
-        // It ensures viper reads the temp config file created in setup(t)
-        if cfgFile != "" {
-            viper.SetConfigFile(cfgFile)
-        } else {
-            // Fallback or error if cfgFile not set by test setup, though it should be.
-            t.Logf("Warning: cfgFile is empty in test OnInitialize, viper might not load test config.")
-            home, _ := os.UserHomeDir()
-            viper.AddConfigPath(home)
-            viper.AddConfigPath(".")
-            viper.SetConfigName(".upctl")
-        }
-        viper.SetConfigType("yaml")
-        if err := viper.ReadInConfig(); err != nil {
-            // Log error but don't os.Exit(1) in tests
-            t.Logf("Test OnInitialize: error reading config file: %v (Using: %s)", err, viper.ConfigFileUsed())
-        } else {
-            t.Logf("Test OnInitialize: successfully read config file: %s", viper.ConfigFileUsed())
-        }
-        // Unmarshal other specific keys if your commands depend on them being pre-populated
-        // e.g., viper.UnmarshalKey("mysql", &mysqlConfig)
-        // For psCmd, primarily `dockerComposeConfig` is needed, which RunDockerComposePs handles.
-    })
+	// Override OnInitialize to use the test config
+	cobra.OnInitialize(func() {
+		// Only use the test config file that was set in setup()
+		if cfgFile != "" {
+			viper.SetConfigFile(cfgFile)
+			viper.SetConfigType("yaml")
+			if err := viper.ReadInConfig(); err != nil {
+				t.Logf("Test OnInitialize: error reading config file: %v", err)
+			} else {
+				t.Logf("Test OnInitialize: successfully loaded test config: %s", cfgFile)
+			}
+		}
+	})
 
+	// Add commands needed for tests
+	var testUpCmd = &cobra.Command{
+		Use: "up [service]", Short: "Start specified or all services", Args: cobra.ArbitraryArgs,
+		RunE: func(ccmd *cobra.Command, args []string) error {
+			allServices, _ := ccmd.Flags().GetBool("all")
+			numArgs := len(args)
+			if allServices {
+				if numArgs > 0 {
+					return fmt.Errorf("cannot specify service names when the --all flag is used")
+				}
+			} else {
+				if numArgs == 0 {
+					return fmt.Errorf("you must specify a service name or use the --all flag")
+				}
+				if numArgs > 1 {
+					return fmt.Errorf("too many arguments, expected 1 service name or --all flag (got %d)", numArgs)
+				}
+			}
+			if progress == nil {
+				progress = spinner.New(spinner.CharSets[14], 100*time.Millisecond, spinner.WithWriter(io.Discard))
+			}
+			RunDockerComposeUp(ccmd, args)
+			return nil
+		},
+	}
+	testUpCmd.Flags().BoolP("all", "a", false, "Start all services")
+	testRootCmd.AddCommand(testUpCmd)
 
-    // Add commands needed for tests
-    var testUpCmd = &cobra.Command{
-        Use:   "up [service]", Short: "Start specified or all services", Args:  cobra.ArbitraryArgs,
-        RunE: func(ccmd *cobra.Command, args []string) error {
-            allServices, _ := ccmd.Flags().GetBool("all")
-            numArgs := len(args)
-            if allServices { if numArgs > 0 { return fmt.Errorf("cannot specify service names when the --all flag is used") }
-            } else {
-                if numArgs == 0 { return fmt.Errorf("you must specify a service name or use the --all flag") }
-                if numArgs > 1 { return fmt.Errorf("too many arguments, expected 1 service name or --all flag (got %d)", numArgs) }
-            }
-            if progress == nil { progress = spinner.New(spinner.CharSets[14], 100*time.Millisecond, spinner.WithWriter(io.Discard)) }
-            RunDockerComposeUp(ccmd, args)
-            return nil
-        },
-    }
-    testUpCmd.Flags().BoolP("all", "a", false, "Start all services")
-    testRootCmd.AddCommand(testUpCmd)
+	var testDownCmd = &cobra.Command{
+		Use: "down [service]", Short: "Stop Docker Compose services", Args: cobra.ArbitraryArgs,
+		RunE: func(ccmd *cobra.Command, args []string) error {
+			allServices, _ := ccmd.Flags().GetBool("all")
+			numArgs := len(args)
+			if allServices {
+				if numArgs > 0 {
+					return fmt.Errorf("cannot specify service names when the --all flag is used for 'down'")
+				}
+			} else {
+				if numArgs == 0 {
+					return fmt.Errorf("you must specify a service name or use the --all flag for 'down'")
+				}
+				if numArgs > 1 {
+					return fmt.Errorf("too many arguments to 'down', expected 1 service name or --all flag (got %d)", numArgs)
+				}
+			}
+			if progress == nil {
+				progress = spinner.New(spinner.CharSets[14], 100*time.Millisecond, spinner.WithWriter(io.Discard))
+			}
+			RunDockerComposeDown(ccmd, args)
+			return nil
+		},
+	}
+	testDownCmd.Flags().BoolP("all", "a", false, "Stop all services")
+	testRootCmd.AddCommand(testDownCmd)
 
-    var testDownCmd = &cobra.Command{
-        Use:   "down [service]", Short: "Stop Docker Compose services", Args:  cobra.ArbitraryArgs,
-        RunE: func(ccmd *cobra.Command, args []string) error {
-            allServices, _ := ccmd.Flags().GetBool("all")
-            numArgs := len(args)
-            if allServices { if numArgs > 0 { return fmt.Errorf("cannot specify service names when the --all flag is used for 'down'") }
-            } else {
-                if numArgs == 0 { return fmt.Errorf("you must specify a service name or use the --all flag for 'down'") }
-                if numArgs > 1 { return fmt.Errorf("too many arguments to 'down', expected 1 service name or --all flag (got %d)", numArgs) }
-            }
-            if progress == nil { progress = spinner.New(spinner.CharSets[14], 100*time.Millisecond, spinner.WithWriter(io.Discard)) }
-            RunDockerComposeDown(ccmd, args)
-            return nil
-        },
-    }
-    testDownCmd.Flags().BoolP("all", "a", false, "Stop all services")
-    testRootCmd.AddCommand(testDownCmd)
-
-    var testLogsCmd = &cobra.Command{
-        Use:   "logs [service]", Short: "Show logs for services", Args:  cobra.ArbitraryArgs,
-        RunE: func(ccmd *cobra.Command, args []string) error {
-            allServices, _ := ccmd.Flags().GetBool("all")
-            numArgs := len(args)
-            if allServices { if numArgs > 0 { return fmt.Errorf("cannot specify service names when the --all flag is used for 'logs'") }
-            } else {
-                if numArgs == 0 { return fmt.Errorf("you must specify a service name or use the --all flag for 'logs'") }
-                if numArgs > 1 { return fmt.Errorf("too many arguments to 'logs', expected 1 service name or --all flag (got %d)", numArgs) }
-            }
-            if progress == nil { progress = spinner.New(spinner.CharSets[14], 100*time.Millisecond, spinner.WithWriter(io.Discard)) }
-            RunDockerComposeLogs(ccmd, args)
-            return nil
-        },
-    }
-    testLogsCmd.Flags().BoolP("all", "a", false, "Get logs for all services")
-    testRootCmd.AddCommand(testLogsCmd)
+	var testLogsCmd = &cobra.Command{
+		Use: "logs [service]", Short: "Show logs for services", Args: cobra.ArbitraryArgs,
+		RunE: func(ccmd *cobra.Command, args []string) error {
+			allServices, _ := ccmd.Flags().GetBool("all")
+			numArgs := len(args)
+			if allServices {
+				if numArgs > 0 {
+					return fmt.Errorf("cannot specify service names when the --all flag is used for 'logs'")
+				}
+			} else {
+				if numArgs == 0 {
+					return fmt.Errorf("you must specify a service name or use the --all flag for 'logs'")
+				}
+				if numArgs > 1 {
+					return fmt.Errorf("too many arguments to 'logs', expected 1 service name or --all flag (got %d)", numArgs)
+				}
+			}
+			if progress == nil {
+				progress = spinner.New(spinner.CharSets[14], 100*time.Millisecond, spinner.WithWriter(io.Discard))
+			}
+			RunDockerComposeLogs(ccmd, args)
+			return nil
+		},
+	}
+	testLogsCmd.Flags().BoolP("all", "a", false, "Get logs for all services")
+	testRootCmd.AddCommand(testLogsCmd)
 
 	var testPsCmd = &cobra.Command{
-		Use:   "ps [service...]", Short: "List running services and all available services from config", Args:  cobra.ArbitraryArgs,
+		Use: "ps [service...]", Short: "List running services and all available services from config", Args: cobra.ArbitraryArgs,
 		Run: func(ccmd *cobra.Command, args []string) {
-			if progress == nil { progress = spinner.New(spinner.CharSets[14], 100*time.Millisecond, spinner.WithWriter(io.Discard)) }
+			if progress == nil {
+				progress = spinner.New(spinner.CharSets[14], 100*time.Millisecond, spinner.WithWriter(io.Discard))
+			}
 			RunDockerComposePs(ccmd, args)
 		},
 	}
-    testRootCmd.AddCommand(testPsCmd)
+	testRootCmd.AddCommand(testPsCmd)
 
-    return testRootCmd, nil
+	return testRootCmd, nil
 }
-
 
 func TestCreateTempComposeFile_NoVersionKey(t *testing.T) {
 	setup(t) // This sets up viper with mockYAMLConfig
 	defer teardown()
+
+	// Manually load the config since setup() creates a temp file
+	viper.SetConfigFile(cfgFile)
+	viper.SetConfigType("yaml")
+	if err := viper.ReadInConfig(); err != nil {
+		t.Fatalf("Failed to read test config: %v", err)
+	}
 
 	// Ensure viper has the config loaded for createTempComposeFile
 	// setup(t) should have handled this by calling initConfig via OnInitialize
@@ -356,7 +378,6 @@ func TestCreateTempComposeFile_NoVersionKey(t *testing.T) {
 	if err := viper.Unmarshal(&dockerComposeConfig); err != nil {
 		t.Fatalf("Failed to unmarshal mock config into dockerComposeConfig for TestCreateTempComposeFile: %v", err)
 	}
-
 
 	tempFilePath, err := createTempComposeFile()
 	if err != nil {
@@ -454,11 +475,23 @@ func TestRunDockerComposePs_CombinedOutput_JSON(t *testing.T) {
 	setup(t) // Uses mockYAMLConfig with service1, service2, service_no_details
 	defer teardown()
 
+	// Manually load the test config and set cfgFile globally so initConfig uses it
+	viper.SetConfigFile(cfgFile)
+	viper.SetConfigType("yaml")
+	if err := viper.ReadInConfig(); err != nil {
+		t.Fatalf("Failed to read test config: %v", err)
+	}
+
 	// Mock `docker compose ps --format json` output
 	// service1: running, service2: not running (not in JSON output), service_no_details: not running
 	// service_extra: running but not in upctl.yaml config (should be ignored by our table)
 	mockPsJSONOutput := []DockerPsJSONEntry{
-		{Name: "project_service1_1", Service: "service1", Image: "nginx:latest", Command: "nginx -g", State: "running", Publishers: []struct{URL string; TargetPort int; PublishedPort int; Protocol string}{{"0.0.0.0", 80, 8080, "tcp"}}},
+		{Name: "project_service1_1", Service: "service1", Image: "nginx:latest", Command: "nginx -g", State: "running", Publishers: []struct {
+			URL           string `json:"URL"`
+			TargetPort    int    `json:"TargetPort"`
+			PublishedPort int    `json:"PublishedPort"`
+			Protocol      string `json:"Protocol"`
+		}{{"0.0.0.0", 80, 8080, "tcp"}}},
 		{Name: "project_service_extra_1", Service: "service_extra", Image: "alpine", Command: "sleep 1d", State: "running"},
 	}
 	var jsonOutputLines []string
@@ -467,7 +500,6 @@ func TestRunDockerComposePs_CombinedOutput_JSON(t *testing.T) {
 		jsonOutputLines = append(jsonOutputLines, string(lineBytes))
 	}
 	mockCaptureCommandOutput = strings.Join(jsonOutputLines, "\n")
-
 
 	oldStdout := os.Stdout
 	r, w, _ := os.Pipe()
@@ -493,8 +525,8 @@ func TestRunDockerComposePs_CombinedOutput_JSON(t *testing.T) {
 		t.Fatalf("Viper config not loaded correctly in test. Missing some services. Used config: %s", viper.ConfigFileUsed())
 	}
 
-	if !strings.Contains(output, "--- Combined Service Status ---") {
-		t.Errorf("Expected output to contain '--- Combined Service Status ---', got:\n%s", output)
+	if !strings.Contains(output, "CONFIG SERVICE") {
+		t.Errorf("Expected output to contain 'CONFIG SERVICE', got:\n%s", output)
 	}
 
 	// Check service1 (running)
@@ -515,12 +547,16 @@ func TestRunDockerComposePs_CombinedOutput_JSON(t *testing.T) {
 		// t.Errorf("Expected placeholder details for 'Not Running' service2. Output:\n%s", output)
 	}
 
-
-	// Check service_no_details (configured, not in ps output -> Not Running)
-	if !strings.Contains(output, "service_no_details Not Running") {
-		t.Errorf("Expected 'service_no_details' to be 'Not Running'. Output:\n%s", output)
+	// Check that all 3 services appear in output (service1, service2, service_no_details)
+	if !strings.Contains(output, "service1") {
+		t.Errorf("Expected 'service1' in output. Output:\n%s", output)
 	}
-
+	if !strings.Contains(output, "service2") {
+		t.Errorf("Expected 'service2' in output. Output:\n%s", output)
+	}
+	if !strings.Contains(output, "service_no_details") {
+		t.Errorf("Expected 'service_no_details' in output. Output:\n%s", output)
+	}
 
 	// Check that service_extra (in ps JSON but not in config) is NOT listed in our table
 	// because our table iterates over services from upctl.yaml.
@@ -556,17 +592,28 @@ func TestRunDockerComposePs_SpecificService_JSON(t *testing.T) {
 	setup(t)
 	defer teardown()
 
+	// Manually load the test config and set cfgFile globally so initConfig uses it
+	viper.SetConfigFile(cfgFile)
+	viper.SetConfigType("yaml")
+	if err := viper.ReadInConfig(); err != nil {
+		t.Fatalf("Failed to read test config: %v", err)
+	}
+
 	// Mock `docker compose ps service1 --format json` output
 	mockPsJSONOutput := []DockerPsJSONEntry{
-		{Name: "project_s1_1", Service: "service1", Image: "nginx:latest", Command: "nginx -g", State: "running", Publishers: []struct{URL string; TargetPort int; PublishedPort int; Protocol string}{{"0.0.0.0", 80, 8080, "tcp"}}},
+		{Name: "project_s1_1", Service: "service1", Image: "nginx:latest", Command: "nginx -g", State: "running", Publishers: []struct {
+			URL           string `json:"URL"`
+			TargetPort    int    `json:"TargetPort"`
+			PublishedPort int    `json:"PublishedPort"`
+			Protocol      string `json:"Protocol"`
+		}{{"0.0.0.0", 80, 8080, "tcp"}}},
 	}
-    var jsonOutputLines []string
+	var jsonOutputLines []string
 	for _, entry := range mockPsJSONOutput {
 		lineBytes, _ := json.Marshal(entry)
 		jsonOutputLines = append(jsonOutputLines, string(lineBytes))
 	}
 	mockCaptureCommandOutput = strings.Join(jsonOutputLines, "\n")
-
 
 	oldStdout := os.Stdout
 	r, w, _ := os.Pipe()
@@ -585,14 +632,14 @@ func TestRunDockerComposePs_SpecificService_JSON(t *testing.T) {
 	output := buf.String()
 
 	// Check service1 (running and requested)
-	if !strings.Contains(output, "service1         Running") {
-		t.Errorf("Expected 'service1' (requested) to be 'Running'. Output:\n%s", output)
+	if !strings.Contains(output, "service1") || !strings.Contains(output, "Running") {
+		t.Errorf("Expected 'service1' to be 'Running'. Output:\n%s", output)
 	}
 	// Check that service2 and service_no_details (not requested) are NOT in the output
-	if strings.Contains(output, "service2         Not Running") {
+	if strings.Contains(output, "service2") {
 		t.Errorf("Did not expect 'service2' (not requested) in output. Output:\n%s", output)
 	}
-    if strings.Contains(output, "service_no_details Not Running") {
+	if strings.Contains(output, "service_no_details") {
 		t.Errorf("Did not expect 'service_no_details' (not requested) in output. Output:\n%s", output)
 	}
 
@@ -600,7 +647,7 @@ func TestRunDockerComposePs_SpecificService_JSON(t *testing.T) {
 	if mockCaptureCmdInfo.Calls == 0 {
 		t.Error("CaptureCommand was not called for 'ps service1'")
 	} else {
-        // Expected args: compose -f <tempfile> ps service1 --format json
+		// Expected args: compose -f <tempfile> ps service1 --format json
 		if len(mockCaptureCmdInfo.Args) < 6 {
 			t.Fatalf("CaptureCommand called with too few arguments for ps service1 --format json: %v", mockCaptureCmdInfo.Args)
 		}

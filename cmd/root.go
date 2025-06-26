@@ -82,6 +82,9 @@ var (
 	// Command variables for install and import-db, defined in init()
 	installCmd  *cobra.Command
 	importDBCmd *cobra.Command
+
+	// Flag to skip config reloading during tests
+	skipConfigReload bool
 )
 
 // Execute executes the root command.
@@ -130,17 +133,17 @@ func init() {
 	}
 
 	rootCmd.AddCommand(
-		upCmd,           // Renamed from startCmd
-		downCmd,         // New
-		logsCmd,         // New
-		psCmd,           // Updated
-		installCmd,      // New or updated
-		importDBCmd,     // New or updated
-		configCmd,       // Existing
-		doctorCmd,       // Existing
-		validateCmd,     // Existing
-		versionCmd,      // Existing
-		volumesCmd,      // New
+		upCmd,       // Renamed from startCmd
+		downCmd,     // New
+		logsCmd,     // New
+		psCmd,       // Updated
+		installCmd,  // New or updated
+		importDBCmd, // New or updated
+		configCmd,   // Existing
+		doctorCmd,   // Existing
+		validateCmd, // Existing
+		versionCmd,  // Existing
+		volumesCmd,  // New
 	)
 }
 
@@ -484,6 +487,11 @@ var psCmd = &cobra.Command{
 // installCmd and importDBCmd are defined above, near rootCmd.AddCommand
 
 func initConfig() {
+	// Skip config reloading during tests if flag is set
+	if skipConfigReload {
+		return
+	}
+
 	if cfgFile != "" {
 		// Use config file from the flag.
 		viper.SetConfigFile(cfgFile)

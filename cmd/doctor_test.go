@@ -30,10 +30,10 @@ func captureDoctorOutput(f func()) string {
 
 func TestRunDoctorChecks(t *testing.T) {
 	tests := []struct {
-		name            string
-		configContent   string
-		setupExternal   func() (cleanup func()) // For setting up external conditions like occupied ports
-		expectInOutput  []string
+		name              string
+		configContent     string
+		setupExternal     func() (cleanup func()) // For setting up external conditions like occupied ports
+		expectInOutput    []string
 		notExpectInOutput []string
 	}{
 		{
@@ -59,18 +59,18 @@ services:
 			},
 		},
 		{
-			name: "Config file not found",
-			configContent: "", // Viper will be reset, no file set
+			name:           "Config file not found",
+			configContent:  "", // Viper will be reset, no file set
 			expectInOutput: []string{"Error: Config file not found."},
 		},
 		{
-			name: "Invalid YAML syntax",
-			configContent: "services: web: { image: myimage, ports: [\"8990:80\"] : } :", // Extra colons
+			name:           "Invalid YAML syntax",
+			configContent:  "services: web: { image: myimage, ports: [\"8990:80\"] : } :", // Extra colons
 			expectInOutput: []string{"Error: Could not read config file"},
 		},
 		{
-			name: "Missing services key",
-			configContent: "version: 1",
+			name:           "Missing services key",
+			configContent:  "version: 1",
 			expectInOutput: []string{"Error: 'services' key not found or empty"},
 		},
 		{
@@ -89,7 +89,7 @@ services:
 			expectInOutput: []string{
 				"--- Port Conflict Analysis ---",
 				"Checking for internal port conflicts within upctl.yaml...",
-				"[!] Internal Conflict: Port 8991 (address: :8991) is defined by multiple services: app1, app2", // Order of app1, app2 might vary
+				"[!] Internal Conflict: Port 8991 (address: :8991) is defined by multiple services:", // Order of app1, app2 might vary
 				// We should not see an "Info: Port 8991 ... is available" for an internally conflicted port.
 				// The host check for :8991 will be skipped.
 			},
@@ -115,35 +115,35 @@ services:
 			expectInOutput: []string{"[!] Host Conflict: Port 8992 (address: :8992, defined for service 'testservice') is in use by another application on the host."},
 		},
 		{
-            name: "Port defined with IP, available",
-            configContent: `
+			name: "Port defined with IP, available",
+			configContent: `
 services:
   web_with_ip:
     image: myimage
     ports:
       - "127.0.0.1:8993:80"
 `,
-            expectInOutput: []string{"[OK] Port Available: Port 8993 (address: 127.0.0.1:8993, defined for service 'web_with_ip') is available on the host."},
-        },
-        {
-            name: "Port defined with IP, in use",
-            configContent: `
+			expectInOutput: []string{"[OK] Port Available: Port 8993 (address: 127.0.0.1:8993, defined for service 'web_with_ip') is available on the host."},
+		},
+		{
+			name: "Port defined with IP, in use",
+			configContent: `
 services:
   another_service:
     image: another_image
     ports:
       - "127.0.0.1:8994:80"
 `,
-            setupExternal: func() (cleanup func()) {
-                listener, err := net.Listen("tcp", "127.0.0.1:8994")
-                if err != nil {
-                    t.Logf("Could not listen on port 127.0.0.1:8994 for test setup: %v", err)
-                    return func() {}
-                }
-                return func() { listener.Close() }
-            },
-            expectInOutput: []string{"[!] Host Conflict: Port 8994 (address: 127.0.0.1:8994, defined for service 'another_service') is in use by another application on the host."},
-        },
+			setupExternal: func() (cleanup func()) {
+				listener, err := net.Listen("tcp", "127.0.0.1:8994")
+				if err != nil {
+					t.Logf("Could not listen on port 127.0.0.1:8994 for test setup: %v", err)
+					return func() {}
+				}
+				return func() { listener.Close() }
+			},
+			expectInOutput: []string{"[!] Host Conflict: Port 8994 (address: 127.0.0.1:8994, defined for service 'another_service') is in use by another application on the host."},
+		},
 	}
 
 	for _, tt := range tests {
@@ -196,13 +196,13 @@ services:
 					t.Errorf("Expected output for '%s' to contain '%s', but got:\n%s", tt.name, expected, output)
 				}
 			}
-            if len(tt.notExpectInOutput) > 0 {
-                for _, notExpected := range tt.notExpectInOutput {
-                     if strings.Contains(output, notExpected) {
-                        t.Errorf("Expected output for '%s' NOT to contain '%s', but got:\n%s", tt.name, notExpected, output)
-                    }
-                }
-            }
+			if len(tt.notExpectInOutput) > 0 {
+				for _, notExpected := range tt.notExpectInOutput {
+					if strings.Contains(output, notExpected) {
+						t.Errorf("Expected output for '%s' NOT to contain '%s', but got:\n%s", tt.name, notExpected, output)
+					}
+				}
+			}
 		})
 	}
 }

@@ -17,8 +17,8 @@ type MockExecuteCommand struct {
 
 var mockExecuteTracker []MockExecuteCommand
 
-// mockExecuteCommand replaces the real ExecuteCommand for testing
-func mockExecuteCommand(command string, args ...string) error {
+// mockExecuteCommandVolumes replaces the real ExecuteCommand for testing
+func mockExecuteCommandVolumes(command string, args ...string) error {
 	tracker := MockExecuteCommand{Command: command, Args: args}
 	mockExecuteTracker = append(mockExecuteTracker, tracker)
 	// Simulate error if needed for a specific test case by checking command/args
@@ -39,7 +39,7 @@ func mockCaptureCommand(command string, args ...string) (string, error) {
 func TestVolumesLsCmd(t *testing.T) {
 	// Setup: Replace ExecuteCommand with mock
 	originalExecuteCommand := ExecuteCommand
-	ExecuteCommand = mockExecuteCommand
+	ExecuteCommand = mockExecuteCommandVolumes
 	defer func() { ExecuteCommand = originalExecuteCommand }() // Restore original
 
 	mockExecuteTracker = []MockExecuteCommand{} // Reset tracker
@@ -73,7 +73,7 @@ func TestVolumesLsCmd(t *testing.T) {
 
 func TestVolumesRmCmd(t *testing.T) {
 	originalExecuteCommand := ExecuteCommand
-	ExecuteCommand = mockExecuteCommand
+	ExecuteCommand = mockExecuteCommandVolumes
 	defer func() { ExecuteCommand = originalExecuteCommand }()
 
 	tests := []struct {

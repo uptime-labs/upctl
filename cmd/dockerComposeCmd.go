@@ -6,9 +6,11 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+
 	// "regexp" // Not strictly needed anymore with JSON parsing for main fields
 	"sort"
 	"strings"
+
 	// "text/tabwriter" // Consider for more advanced table formatting if needed
 
 	"github.com/spf13/cobra"
@@ -107,7 +109,6 @@ func RunDockerComposePs(cmd *cobra.Command, args []string) {
 		fmt.Fprintf(os.Stderr, "Error reading 'docker compose ps' output stream: %v\n", errScan)
 	}
 
-	fmt.Println("\n--- Combined Service Status ---")
 	headerToPrint := "CONFIG SERVICE   STATUS         NAME             IMAGE                      COMMAND                  SERVICE (PS)      STATE               PORTS"
 	fmt.Println(headerToPrint)
 	fmt.Println(strings.Repeat("-", len(headerToPrint)))
@@ -144,15 +145,14 @@ func RunDockerComposePs(cmd *cobra.Command, args []string) {
 			}
 		}
 		if len(servicesToDisplay) == 0 && len(args) > 0 {
-		    // All services specified in args were not in config.
-		    // Let docker compose ps handle this; it will likely show nothing or error if those services don't exist.
-		    // We can add a message here.
-		    // fmt.Println("Info: None of the specified services are defined in the upctl.yaml configuration.")
-		    // If CaptureCommand returned an error because docker compose ps found no such services, that's already printed.
-		    // If it returned empty JSON, our loop won't run.
-		    // The current logic is fine: if `servicesToDisplay` is empty, nothing is printed.
+			// All services specified in args were not in config.
+			// Let docker compose ps handle this; it will likely show nothing or error if those services don't exist.
+			// We can add a message here.
+			// fmt.Println("Info: None of the specified services are defined in the upctl.yaml configuration.")
+			// If CaptureCommand returned an error because docker compose ps found no such services, that's already printed.
+			// If it returned empty JSON, our loop won't run.
+			// The current logic is fine: if `servicesToDisplay` is empty, nothing is printed.
 		}
-
 
 	} else {
 		for name := range availableServicesFromConfig {
@@ -160,7 +160,6 @@ func RunDockerComposePs(cmd *cobra.Command, args []string) {
 		}
 	}
 	sort.Strings(servicesToDisplay)
-
 
 	for _, serviceName := range servicesToDisplay {
 		details, isRunning := runningServicesDetails[serviceName]
@@ -180,20 +179,30 @@ func RunDockerComposePs(cmd *cobra.Command, args []string) {
 				portStrings = append(portStrings, fmt.Sprintf("%s:%d->%d/%s", url, p.PublishedPort, p.TargetPort, p.Protocol))
 			}
 			portsStr := strings.Join(portStrings, ", ")
-			if len(portsStr) == 0 { portsStr = "-" }
+			if len(portsStr) == 0 {
+				portsStr = "-"
+			}
 
 			commandStr := details.Command
-			if len(commandStr) > 20 { commandStr = commandStr[:17] + "..." }
-			if commandStr == "" { commandStr = "-" }
+			if len(commandStr) > 20 {
+				commandStr = commandStr[:17] + "..."
+			}
+			if commandStr == "" {
+				commandStr = "-"
+			}
 
 			imageStr := details.Image
-			if len(imageStr) > 24 { imageStr = imageStr[:21] + "..."}
-
+			if len(imageStr) > 24 {
+				imageStr = imageStr[:21] + "..."
+			}
 
 			psState := details.State
-			if psState == "" { psState = details.Status }
-			if len(psState) > 17 { psState = psState[:14] + "..."}
-
+			if psState == "" {
+				psState = details.Status
+			}
+			if len(psState) > 17 {
+				psState = psState[:14] + "..."
+			}
 
 			fmt.Printf("%-16s %-14s %-16s %-26s %-24s %-17s %-19s %s\n",
 				serviceName, statusString, details.Name, imageStr, commandStr,
@@ -209,7 +218,6 @@ func RunDockerComposePs(cmd *cobra.Command, args []string) {
 		}
 	}
 }
-
 
 // RunDockerComposeUp starts docker compose services. It's public so it can be called from other packages.
 func RunDockerComposeUp(cmd *cobra.Command, args []string) {
@@ -423,9 +431,15 @@ func RunDockerImportDB(cmd *cobra.Command, args []string) {
 func createTempComposeFile() (string, error) {
 	err := viper.Unmarshal(&dockerComposeConfig)
 	if err != nil {
-		if dockerComposeConfig.Services == nil { dockerComposeConfig.Services = make(map[string]interface{}) }
-		if dockerComposeConfig.Volumes == nil { dockerComposeConfig.Volumes = make(map[string]interface{}) }
-		if dockerComposeConfig.Networks == nil { dockerComposeConfig.Networks = make(map[string]interface{}) }
+		if dockerComposeConfig.Services == nil {
+			dockerComposeConfig.Services = make(map[string]interface{})
+		}
+		if dockerComposeConfig.Volumes == nil {
+			dockerComposeConfig.Volumes = make(map[string]interface{})
+		}
+		if dockerComposeConfig.Networks == nil {
+			dockerComposeConfig.Networks = make(map[string]interface{})
+		}
 	}
 
 	if viper.IsSet("services") {
@@ -471,7 +485,7 @@ func createTempComposeFile() (string, error) {
 		return "", fmt.Errorf("error writing to temporary file: %s", err.Error())
 	}
 
-	filePath := tempFile.Name() // Get the name before closing
+	filePath := tempFile.Name()              // Get the name before closing
 	if err := tempFile.Close(); err != nil { // Now close
 		// Log or handle error, but filePath is still valid for defer os.Remove
 		fmt.Fprintf(os.Stderr, "Warning: error closing temporary compose file '%s': %v\n", filePath, err)
