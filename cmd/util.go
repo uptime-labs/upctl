@@ -96,6 +96,29 @@ var ExecuteCommand = func(command string, args ...string) error {
 	return nil
 }
 
+// CaptureCommand executes the given CLI command and returns its stdout and an error if any.
+// Stderr is printed to the console.
+var CaptureCommand = func(command string, args ...string) (string, error) {
+	cmd := exec.Command(command, args...)
+	var stdoutBuf, stderrBuf bytes.Buffer
+	cmd.Stdout = &stdoutBuf
+	cmd.Stderr = &stderrBuf // Capture stderr as well
+
+	err := cmd.Run() // Use Run instead of Start/Wait for simpler capture
+
+	// Print stderr to console, as ExecuteCommand does, but we are capturing stdout
+	if stderrBuf.Len() > 0 {
+		fmt.Fprintln(os.Stderr, stderrBuf.String())
+	}
+
+	if err != nil {
+		// Include stderr in the error message if the command failed
+		return stdoutBuf.String(), fmt.Errorf("command failed: %s\nStderr: %s", err, stderrBuf.String())
+	}
+
+	return stdoutBuf.String(), nil
+}
+
 // tshAwsEcrLogin
 func tshAwsEcrLogin() (string, error) {
 	cmd := exec.Command("tsh", "aws", "--app", dockerConfig.AWSApp, "ecr", "get-login-password", "--region", "eu-west-1")
