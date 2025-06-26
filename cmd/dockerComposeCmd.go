@@ -50,8 +50,6 @@ var (
 // RunDockerComposePs lists running docker compose services and available services from config using JSON output.
 func RunDockerComposePs(cmd *cobra.Command, args []string) {
 	progress.Start()
-	defer progress.Stop()
-
 	// Get available services from config
 	err := viper.Unmarshal(&dockerComposeConfig)
 	if err != nil {
@@ -64,12 +62,15 @@ func RunDockerComposePs(cmd *cobra.Command, args []string) {
 
 	tempComposePath, err := createTempComposeFile()
 	if err != nil {
+		progress.Stop() // Stop progress before printing error and exiting
 		fmt.Printf("Error creating temporary compose file: %s\n", err.Error())
 		os.Exit(1)
 	}
 	defer os.Remove(tempComposePath)
 
-	fmt.Println("Listing Docker Compose services (running and available)...")
+	// Spinner is started in root.go's psCmd.Run. We will stop it after capture.
+	// fmt.Println("Listing Docker Compose services (running and available)...") // Removed this line
+
 	composePsBaseArgs := []string{"compose", "-f", tempComposePath}
 	composePsCmdArgs := append(composePsBaseArgs, "ps")
 	if len(args) > 0 {
@@ -77,9 +78,13 @@ func RunDockerComposePs(cmd *cobra.Command, args []string) {
 	}
 	composePsCmdArgs = append(composePsCmdArgs, "--format", "json")
 
-	psOutputStr, err := CaptureCommand("docker", composePsCmdArgs...)
-	if err != nil {
-		fmt.Printf("Note: Error executing 'docker compose ps --format json': %s. Output might be incomplete.\n", err.Error())
+	psOutputStr, errCapture := CaptureCommand("docker", composePsCmdArgs...)
+
+	progress.Stop() // Stop spinner immediately after command execution
+
+	if errCapture != nil {
+		// It's important that progress.Stop() was called before this print.
+		fmt.Printf("Note: Error executing 'docker compose ps --format json': %s. Output might be incomplete.\n", errCapture.Error())
 	}
 
 	runningServicesDetails := make(map[string]DockerPsJSONEntry)
