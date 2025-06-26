@@ -1,21 +1,19 @@
 package cmd
 
 import (
-	"os"
-	"strings"
-	"testing"
-
-	"github.com/spf13/viper"
-	"gopkg.in/yaml.v3"
 	"bytes"
 	"fmt"
 	"io"
-	// "os/exec" // No longer needed directly due to type inference for ExecuteCommand
+	"os"
 	"path/filepath"
-	"time" // For spinner
+	"strings"
+	"testing"
+	"time"
 
-	"github.com/briandowns/spinner" // For spinner
+	"github.com/briandowns/spinner"
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
+	"gopkg.in/yaml.v3"
 )
 
 // MockExecuteCommandInfo holds information about calls to the mock ExecuteCommand
@@ -28,6 +26,7 @@ type MockExecuteCommandInfo struct {
 var mockExecuteCmdInfo MockExecuteCommandInfo
 var mockExecuteCommandShouldError bool
 var originalExecuteCommand func(command string, args ...string) error
+var isTestInitCalled bool // Prevents multiple OnInitialize calls in test setup
 
 // mockExecuteCommand replaces the real ExecuteCommand for testing
 func mockExecuteCommand(command string, args ...string) error {
@@ -37,12 +36,7 @@ func mockExecuteCommand(command string, args ...string) error {
 	if mockExecuteCommandShouldError {
 		return fmt.Errorf("mock ExecuteCommand error")
 	}
-	// Simulate temp file creation for "docker compose -f <tempfile>" commands
 	if command == "docker" && len(args) > 2 && args[0] == "compose" && args[1] == "-f" {
-		// args[2] is the temp file path
-		// Check if file exists, if not, create it (like createTempComposeFile would)
-		// This is a simplification; real createTempComposeFile does more.
-		// For these tests, we mostly care about the arguments passed to docker.
 		if _, err := os.Stat(args[2]); os.IsNotExist(err) {
 			os.WriteFile(args[2], []byte("services: {}"), 0644)
 		}
@@ -50,25 +44,48 @@ func mockExecuteCommand(command string, args ...string) error {
 	return nil
 }
 
-func setup(t *testing.T) {
-	// Reset Viper for this specific test to ensure a clean state.
-	viper.Reset()
+var originalCaptureCommand func(command string, args ...string) (string, error)
+var mockCaptureCmdInfo MockExecuteCommandInfo // Use the same struct for simplicity
+var mockCaptureCommandShouldError bool
+var mockCaptureCommandOutput string
 
-	// Mock ExecuteCommand
+// mockCaptureCommandForTest replaces the real CaptureCommand for testing psCmd
+func mockCaptureCommandForTest(command string, args ...string) (string, error) {
+	mockCaptureCmdInfo.Command = command
+	mockCaptureCmdInfo.Args = args
+	mockCaptureCmdInfo.Calls++
+	if mockCaptureCommandShouldError {
+		return mockCaptureCommandOutput, fmt.Errorf("mock CaptureCommand error")
+	}
+	if command == "docker" && len(args) > 2 && args[0] == "compose" && args[1] == "-f" {
+		if _, err := os.Stat(args[2]); os.IsNotExist(err) {
+			os.WriteFile(args[2], []byte("services: {}"), 0644)
+		}
+	}
+	return mockCaptureCommandOutput, nil
+}
+
+func setup(t *testing.T) {
+	viper.Reset()
+	isTestInitCalled = false // Reset flag for each test
+
 	originalExecuteCommand = ExecuteCommand
 	ExecuteCommand = mockExecuteCommand
 	mockExecuteCmdInfo = MockExecuteCommandInfo{}
 	mockExecuteCommandShouldError = false
 
-	// Save the current global cfgFile value to restore it after the test.
-	// This is important for test isolation if TestMain is not used or if
-	// tests within this file could affect each other's view of cfgFile.
+	originalCaptureCommand = CaptureCommand
+	CaptureCommand = mockCaptureCommandForTest
+	mockCaptureCmdInfo = MockExecuteCommandInfo{}
+	mockCaptureCommandShouldError = false
+	mockCaptureCommandOutput = ""
+
+
 	previousCfgFileValue := cfgFile
 	t.Cleanup(func() {
 		cfgFile = previousCfgFileValue
 	})
 
-	// Mock configuration
 	mockYAMLConfig := `
 services:
   service1:
@@ -80,7 +97,6 @@ services:
 	if err != nil {
 		t.Fatalf("Failed to create temp config file: %v", err)
 	}
-	// t.TempDir() automatically cleans up the created temp file and directory.
 
 	if _, err := tempCfgFile.WriteString(mockYAMLConfig); err != nil {
 		tempCfgFile.Close()
@@ -90,67 +106,45 @@ services:
 		t.Fatalf("Failed to close temp config file: %v", err)
 	}
 
-	// Set the global cfgFile variable. This is what initConfig (from root.go) will use.
-	cfgFile = tempCfgFile.Name()
-
-	// Configure Viper for THIS test's explicit ReadInConfig.
-	// This ensures that code within the test itself that uses Viper directly
-	// (before any Cobra command execution) sees the correct config.
-	viper.SetConfigFile(cfgFile)
-	viper.SetConfigType("yaml") // Crucial for Viper to know how to parse the file.
-	if err := viper.ReadInConfig(); err != nil {
-		t.Fatalf("setup: viper.ReadInConfig() failed for cfgFile '%s': %v", cfgFile, err)
-	}
-
-	// Ensure dockerComposeConfig is populated, as some tested functions might use it directly.
-	if err := viper.Unmarshal(&dockerComposeConfig); err != nil {
-		t.Fatalf("Failed to unmarshal mock config into dockerComposeConfig: %v", err)
-	}
+	cfgFile = tempCfgFile.Name() // Set for initConfig
+	// initConfig will be called by InitializeTestCmd via cobra.OnInitialize
 }
 
 func teardown() {
-	// Restore ExecuteCommand
 	ExecuteCommand = originalExecuteCommand
+	CaptureCommand = originalCaptureCommand
 
-	// cfgFile is restored by t.Cleanup in setup.
-	// Viper is reset by setup at the beginning of the next test.
-	// If using TestMain, TestMain would handle final viper.Reset() and cfgFile restoration.
-
-	// Clean up any stray docker-compose-*.yml files (these are not part of t.TempDir)
 	files, _ := filepath.Glob("docker-compose-*.yml")
 	for _, f := range files {
 		os.Remove(f)
 	}
 }
 
-var originalGlobalCfgFile string // Captured by TestMain
+var originalGlobalCfgFile string
 
 func TestMain(m *testing.M) {
-	originalGlobalCfgFile = cfgFile // Save at the very start
+	originalGlobalCfgFile = cfgFile
 	exitCode := m.Run()
-	cfgFile = originalGlobalCfgFile // Restore at the very end
-	viper.Reset() // Final Viper reset for the package
+	cfgFile = originalGlobalCfgFile
+	viper.Reset()
 	os.Exit(exitCode)
 }
 
-// Helper to execute cobra command and capture output
 func executeCommandCobra(root *cobra.Command, args ...string) (string, error) {
 	buf := new(bytes.Buffer)
 	root.SetOut(buf)
 	root.SetErr(buf)
 	root.SetArgs(args)
-	err := root.Execute()
+	err := root.Execute() // This will trigger OnInitialize (initConfig)
 	return buf.String(), err
 }
+
 
 func TestRunDockerComposeUp_AllServices(t *testing.T) {
 	setup(t)
 	defer teardown()
 
-	// rootCmd needs to be accessible or re-created here for testing
-	// For simplicity, we'll assume upCmd can be tested via RunE or by constructing a temporary root
-	// Let's use the actual rootCmd from the package
-	testRootCmd, _ := InitializeTestCmd() // Need a helper to get configured rootCmd
+	testRootCmd, _ := InitializeTestCmd()
 
 	_, err := executeCommandCobra(testRootCmd, "up", "--all")
 	if err != nil {
@@ -160,12 +154,11 @@ func TestRunDockerComposeUp_AllServices(t *testing.T) {
 	if mockExecuteCmdInfo.Calls == 0 {
 		t.Errorf("ExecuteCommand was not called for 'up --all'")
 	} else {
-		expectedArgs := []string{"compose", "-f", mockExecuteCmdInfo.Args[2], "up", "-d"} // temp file path is dynamic
+		expectedArgs := []string{"compose", "-f", mockExecuteCmdInfo.Args[2], "up", "-d"}
 		if mockExecuteCmdInfo.Command != "docker" || !equalSlices(mockExecuteCmdInfo.Args[:2], expectedArgs[:2]) || !equalSlices(mockExecuteCmdInfo.Args[3:], expectedArgs[3:]) {
 			t.Errorf("Expected docker compose ... up -d, got command '%s' with args %v", mockExecuteCmdInfo.Command, mockExecuteCmdInfo.Args)
 		}
-		// Check that no service name was added
-		if len(mockExecuteCmdInfo.Args) > 5 { // docker compose -f <file> up -d (5 elements if no service)
+		if len(mockExecuteCmdInfo.Args) > 5 {
 			t.Errorf("Expected no service arguments for --all, got %v", mockExecuteCmdInfo.Args)
 		}
 	}
@@ -184,9 +177,8 @@ func TestRunDockerComposeUp_SpecificService(t *testing.T) {
 	if mockExecuteCmdInfo.Calls == 0 {
 		t.Errorf("ExecuteCommand was not called for 'up service1'")
 	} else {
-		// Expected: docker compose -f <tempfile> up -d service1
 		expectedArgsSuffix := []string{"up", "-d", "service1"}
-		actualArgsSuffix := mockExecuteCmdInfo.Args[3:] // Skip 'compose', '-f', '<tempfile>'
+		actualArgsSuffix := mockExecuteCmdInfo.Args[3:]
 
 		if mockExecuteCmdInfo.Command != "docker" || !equalSlices(actualArgsSuffix, expectedArgsSuffix) {
 			t.Errorf("Expected docker compose ... up -d service1, got command '%s' with args %v", mockExecuteCmdInfo.Command, mockExecuteCmdInfo.Args)
@@ -230,7 +222,6 @@ func TestRunDockerComposeUp_AllAndService(t *testing.T) {
 	}
 }
 
-// equalSlices checks if two string slices are equal.
 func equalSlices(a, b []string) bool {
 	if len(a) != len(b) {
 		return false
@@ -243,120 +234,90 @@ func equalSlices(a, b []string) bool {
 	return true
 }
 
-// TestMain can be used for setup/teardown if needed, or individual test setup.
-// For now, setup/teardown functions are called by each test.
-
-// InitializeTestCmd duplicated from root_test.go (or should be shared)
-// This is a placeholder for however rootCmd is configured and made available for tests.
-// It needs to register all flags and subcommands as in the main init().
+// InitializeTestCmd creates a new rootCmd instance for testing.
 func InitializeTestCmd() (*cobra.Command, error) {
-    // Simplified init for testing. Production init is in root.go's init()
-    // This is a common challenge in testing Cobra apps.
-    // We need a way to get a 'fresh' command tree for each test execution.
+    testRootCmd := &cobra.Command{Use: "upctl"}
+    testRootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.upctl.yaml)")
 
-    // Re-create the root command and its subcommands for testing to avoid state leakage
-    var testRootCmd = &cobra.Command{Use: "upctl"}
-    // Add flags and commands similar to how it's done in the actual init() function in root.go
+    // This ensures that for this test command tree, initConfig will be called.
+    // isTestInitCalled helps manage if cobra.OnInitialize needs to be (re)set globally.
+    if !isTestInitCalled {
+        cobra.OnInitialize(initConfig) // initConfig is from root.go
+        isTestInitCalled = true
+    }
 
-    // upCmd definition would be here or imported/copied
+    // Add commands needed for tests
     var testUpCmd = &cobra.Command{
         Use:   "up [service]",
-        Short: "Start specified or all services using Docker Compose",
-        Long:  `Starts the services defined in your upctl.yaml file using Docker Compose. Equivalent to 'docker compose up -d'. You can optionally specify a single service to start, or use the --all flag to start all services.`,
+        Short: "Start specified or all services",
         Args:  cobra.ArbitraryArgs,
         RunE: func(ccmd *cobra.Command, args []string) error {
             allServices, _ := ccmd.Flags().GetBool("all")
             numArgs := len(args)
-
-            if allServices {
-                if numArgs > 0 {
-                    return fmt.Errorf("cannot specify service names when the --all flag is used")
-                }
+            if allServices { if numArgs > 0 { return fmt.Errorf("cannot specify service names when the --all flag is used") }
             } else {
-                if numArgs == 0 {
-                    return fmt.Errorf("you must specify a service name or use the --all flag")
-                }
-                if numArgs > 1 {
-                    // This specific error message from root.go was:
-                    // "too many arguments, expected 1 service name or --all flag (got %d)"
-                    // For this test, a generic one is fine if we are not testing the exact message from RunE here
-                    // but rather the call to RunDockerComposeUp.
-                    // However, for error case tests, we test the exact error message.
-                    return fmt.Errorf("too many arguments, expected 1 service name or --all flag (got %d)", numArgs)
-
-                }
+                if numArgs == 0 { return fmt.Errorf("you must specify a service name or use the --all flag") }
+                if numArgs > 1 { return fmt.Errorf("too many arguments, expected 1 service name or --all flag (got %d)", numArgs) }
             }
-            // In real scenario, RunDockerComposeUp is called.
-            // For tests focusing on argument parsing by RunE, we might not call it
-            // or call a mock version of it.
-            // For these tests, we assume RunDockerComposeUp is called if no error.
-            if progress == nil { // from root.go
-                 // Initialize progress spinner if it's nil (copied from root.go)
-                 // This might need to be properly initialized or stubbed out for tests
-                 progress = spinner.New(spinner.CharSets[14], 100*time.Millisecond, spinner.WithWriter(io.Discard))
-            }
-            RunDockerComposeUp(ccmd, args) // This will use the mocked ExecuteCommand
+            if progress == nil { progress = spinner.New(spinner.CharSets[14], 100*time.Millisecond, spinner.WithWriter(io.Discard)) }
+            RunDockerComposeUp(ccmd, args)
             return nil
         },
     }
     testUpCmd.Flags().BoolP("all", "a", false, "Start all services")
+    testRootCmd.AddCommand(testUpCmd)
 
-    // downCmd definition (copied and adapted from root.go)
     var testDownCmd = &cobra.Command{
-        Use:   "down [service]",
-        Short: "Stop Docker Compose services",
-        Args:  cobra.ArbitraryArgs,
+        Use:   "down [service]", Short: "Stop Docker Compose services", Args:  cobra.ArbitraryArgs,
         RunE: func(ccmd *cobra.Command, args []string) error {
             allServices, _ := ccmd.Flags().GetBool("all")
             numArgs := len(args)
-            if allServices {
-                if numArgs > 0 { return fmt.Errorf("cannot specify service names when the --all flag is used for 'down'") }
+            if allServices { if numArgs > 0 { return fmt.Errorf("cannot specify service names when the --all flag is used for 'down'") }
             } else {
                 if numArgs == 0 { return fmt.Errorf("you must specify a service name or use the --all flag for 'down'") }
                 if numArgs > 1 { return fmt.Errorf("too many arguments to 'down', expected 1 service name or --all flag (got %d)", numArgs) }
             }
             if progress == nil { progress = spinner.New(spinner.CharSets[14], 100*time.Millisecond, spinner.WithWriter(io.Discard)) }
-            RunDockerComposeDown(ccmd, args) // Will use mocked ExecuteCommand
+            RunDockerComposeDown(ccmd, args)
             return nil
         },
     }
     testDownCmd.Flags().BoolP("all", "a", false, "Stop all services")
+    testRootCmd.AddCommand(testDownCmd)
 
-    // logsCmd definition (copied and adapted from root.go)
     var testLogsCmd = &cobra.Command{
-        Use:   "logs [service]",
-        Short: "Show logs for services",
-        Args:  cobra.ArbitraryArgs,
+        Use:   "logs [service]", Short: "Show logs for services", Args:  cobra.ArbitraryArgs,
         RunE: func(ccmd *cobra.Command, args []string) error {
             allServices, _ := ccmd.Flags().GetBool("all")
             numArgs := len(args)
-            if allServices {
-                if numArgs > 0 { return fmt.Errorf("cannot specify service names when the --all flag is used for 'logs'") }
+            if allServices { if numArgs > 0 { return fmt.Errorf("cannot specify service names when the --all flag is used for 'logs'") }
             } else {
                 if numArgs == 0 { return fmt.Errorf("you must specify a service name or use the --all flag for 'logs'") }
                 if numArgs > 1 { return fmt.Errorf("too many arguments to 'logs', expected 1 service name or --all flag (got %d)", numArgs) }
             }
             if progress == nil { progress = spinner.New(spinner.CharSets[14], 100*time.Millisecond, spinner.WithWriter(io.Discard)) }
-            RunDockerComposeLogs(ccmd, args) // Will use mocked ExecuteCommand
+            RunDockerComposeLogs(ccmd, args)
             return nil
         },
     }
     testLogsCmd.Flags().BoolP("all", "a", false, "Get logs for all services")
+    testRootCmd.AddCommand(testLogsCmd)
 
-    testRootCmd.AddCommand(testUpCmd, testDownCmd, testLogsCmd)
+	var testPsCmd = &cobra.Command{
+		Use:   "ps [service...]", Short: "List running services and all available services from config", Args:  cobra.ArbitraryArgs,
+		Run: func(ccmd *cobra.Command, args []string) {
+			if progress == nil { progress = spinner.New(spinner.CharSets[14], 100*time.Millisecond, spinner.WithWriter(io.Discard)) }
+			RunDockerComposePs(ccmd, args)
+		},
+	}
+    testRootCmd.AddCommand(testPsCmd)
 
     return testRootCmd, nil
 }
 
-// This is line 603 in the previous file listing.
-// The following lines were missing.
-func TestCreateTempComposeFile_NoVersionKey(t *testing.T) {
-	viper.Reset() // Ensure clean viper state for this specific test
 
-	// This test should ideally not interact with global cfgFile.
-	// If createTempComposeFile indirectly calls initConfig, it might.
-	// For now, we assume TestMain handles overall Viper state, and this test
-	// just needs its own mock config loaded.
+func TestCreateTempComposeFile_NoVersionKey(t *testing.T) {
+	viper.Reset()
 
 	mockYAMLConfig := `
 services:
@@ -374,48 +335,40 @@ networks:
   front-tier: {}
   back-tier: {}
 `
-	// Load mock config into viper for this test
 	viper.SetConfigType("yaml")
 	err := viper.ReadConfig(strings.NewReader(mockYAMLConfig))
 	if err != nil {
 		t.Fatalf("Failed to read mock YAML config for TestCreateTempComposeFile: %v", err)
 	}
-	// Ensure dockerComposeConfig is populated for createTempComposeFile
 	if err := viper.Unmarshal(&dockerComposeConfig); err != nil {
 		t.Fatalf("Failed to unmarshal mock config into dockerComposeConfig for TestCreateTempComposeFile: %v", err)
 	}
 
-	// Call the function to be tested
 	tempFilePath, err := createTempComposeFile()
 	if err != nil {
 		t.Fatalf("createTempComposeFile() returned an error: %v", err)
 	}
-	defer os.Remove(tempFilePath) // Clean up the temporary file
+	defer os.Remove(tempFilePath)
 
-	// Read the content of the generated temporary file
 	generatedYAMLBytes, errR := os.ReadFile(tempFilePath)
 	if errR != nil {
 		t.Fatalf("Failed to read temporary compose file '%s': %v", tempFilePath, errR)
 	}
 
-	// Unmarshal the generated YAML to check its structure
 	var generatedContent map[string]interface{}
 	err = yaml.Unmarshal(generatedYAMLBytes, &generatedContent)
 	if err != nil {
 		t.Fatalf("Failed to unmarshal generated YAML content: %v", err)
 	}
 
-	// Assert that the top-level "version" key does NOT exist
 	if _, exists := generatedContent["version"]; exists {
 		t.Errorf("Expected 'version' key to be absent in generated docker-compose.yml, but it was found.")
 	}
 
-	// Assert that 'services' key is present
 	servicesField, servicesExists := generatedContent["services"]
 	if !servicesExists {
 		t.Errorf("'services' key not found in generated docker-compose.yml")
 	} else {
-		// Basic check for content (can be more detailed)
 		servicesMap, ok := servicesField.(map[string]interface{})
 		if !ok {
 			t.Errorf("'services' field is not a map")
@@ -424,20 +377,17 @@ networks:
 		}
 	}
 
-	// Assert that 'volumes' key is present (if in mock)
 	_, volumesExists := generatedContent["volumes"]
 	if !volumesExists {
 		t.Errorf("'volumes' key not found in generated docker-compose.yml")
 	}
 
-	// Assert that 'networks' key is present (if in mock)
 	_, networksExists := generatedContent["networks"]
 	if !networksExists {
 		t.Errorf("'networks' key not found in generated docker-compose.yml")
 	}
 }
 
-// Tests for downCmd
 func TestRunDockerComposeDown_AllServices(t *testing.T) {
 	setup(t)
 	defer teardown()
@@ -450,14 +400,12 @@ func TestRunDockerComposeDown_AllServices(t *testing.T) {
 	if mockExecuteCmdInfo.Calls == 0 {
 		t.Error("ExecuteCommand was not called for 'down --all'")
 	} else {
-		// Expected: docker compose -f <tempfile> down
-		// Args[2] is the temp file path, which is dynamic.
 		expectedArgsPrefix := []string{"compose", "-f"}
 		expectedArgsSuffix := []string{"down"}
 		if !(mockExecuteCmdInfo.Command == "docker" &&
 			equalSlices(mockExecuteCmdInfo.Args[:2], expectedArgsPrefix) &&
-			equalSlices(mockExecuteCmdInfo.Args[3:4], expectedArgsSuffix) && // Args[3] should be "down"
-			len(mockExecuteCmdInfo.Args) == 4) { // docker compose -f <file> down
+			equalSlices(mockExecuteCmdInfo.Args[3:4], expectedArgsSuffix) &&
+			len(mockExecuteCmdInfo.Args) == 4) {
 			t.Errorf("Expected 'docker compose -f <file> down', got command '%s' with args %v", mockExecuteCmdInfo.Command, mockExecuteCmdInfo.Args)
 		}
 	}
@@ -475,13 +423,12 @@ func TestRunDockerComposeDown_SpecificService(t *testing.T) {
 	if mockExecuteCmdInfo.Calls == 0 {
 		t.Error("ExecuteCommand was not called for 'down service1'")
 	} else {
-		// Expected: docker compose -f <tempfile> down service1
 		expectedArgsPrefix := []string{"compose", "-f"}
 		expectedArgsSuffix := []string{"down", "service1"}
 		if !(mockExecuteCmdInfo.Command == "docker" &&
 			equalSlices(mockExecuteCmdInfo.Args[:2], expectedArgsPrefix) &&
-			equalSlices(mockExecuteCmdInfo.Args[3:5], expectedArgsSuffix) && // Args[3] is "down", Args[4] is "service1"
-			len(mockExecuteCmdInfo.Args) == 5) { // docker compose -f <file> down service1
+			equalSlices(mockExecuteCmdInfo.Args[3:5], expectedArgsSuffix) &&
+			len(mockExecuteCmdInfo.Args) == 5) {
 			t.Errorf("Expected 'docker compose -f <file> down service1', got command '%s' with args %v", mockExecuteCmdInfo.Command, mockExecuteCmdInfo.Args)
 		}
 	}
@@ -521,7 +468,6 @@ func TestRunDockerComposeDown_AllAndService(t *testing.T) {
 	}
 }
 
-// Tests for logsCmd
 func TestRunDockerComposeLogs_AllServices(t *testing.T) {
 	setup(t)
 	defer teardown()
@@ -534,13 +480,12 @@ func TestRunDockerComposeLogs_AllServices(t *testing.T) {
 	if mockExecuteCmdInfo.Calls == 0 {
 		t.Error("ExecuteCommand was not called for 'logs --all'")
 	} else {
-		// Expected: docker compose -f <tempfile> logs --follow
 		expectedArgsPrefix := []string{"compose", "-f"}
 		expectedArgsSuffix := []string{"logs", "--follow"}
 		if !(mockExecuteCmdInfo.Command == "docker" &&
 			equalSlices(mockExecuteCmdInfo.Args[:2], expectedArgsPrefix) &&
-			equalSlices(mockExecuteCmdInfo.Args[3:5], expectedArgsSuffix) && // Args[3] is "logs", Args[4] is "--follow"
-			len(mockExecuteCmdInfo.Args) == 5) { // docker compose -f <file> logs --follow
+			equalSlices(mockExecuteCmdInfo.Args[3:5], expectedArgsSuffix) &&
+			len(mockExecuteCmdInfo.Args) == 5) {
 			t.Errorf("Expected 'docker compose -f <file> logs --follow', got command '%s' with args %v", mockExecuteCmdInfo.Command, mockExecuteCmdInfo.Args)
 		}
 	}
@@ -558,13 +503,12 @@ func TestRunDockerComposeLogs_SpecificService(t *testing.T) {
 	if mockExecuteCmdInfo.Calls == 0 {
 		t.Error("ExecuteCommand was not called for 'logs service1'")
 	} else {
-		// Expected: docker compose -f <tempfile> logs --follow service1
 		expectedArgsPrefix := []string{"compose", "-f"}
 		expectedArgsSuffix := []string{"logs", "--follow", "service1"}
 		if !(mockExecuteCmdInfo.Command == "docker" &&
 			equalSlices(mockExecuteCmdInfo.Args[:2], expectedArgsPrefix) &&
-			equalSlices(mockExecuteCmdInfo.Args[3:6], expectedArgsSuffix) && // Args[3] is "logs", Args[4] is "--follow", Args[5] is "service1"
-			len(mockExecuteCmdInfo.Args) == 6) { // docker compose -f <file> logs --follow service1
+			equalSlices(mockExecuteCmdInfo.Args[3:6], expectedArgsSuffix) &&
+			len(mockExecuteCmdInfo.Args) == 6) {
 			t.Errorf("Expected 'docker compose -f <file> logs --follow service1', got command '%s' with args %v", mockExecuteCmdInfo.Command, mockExecuteCmdInfo.Args)
 		}
 	}
@@ -601,5 +545,99 @@ func TestRunDockerComposeLogs_AllAndService(t *testing.T) {
 	}
 	if mockExecuteCmdInfo.Calls > 0 {
 		t.Errorf("ExecuteCommand should not have been called, but was called %d times", mockExecuteCmdInfo.Calls)
+	}
+}
+
+func TestRunDockerComposePs_CombinedOutput(t *testing.T) {
+	setup(t)
+	defer teardown()
+
+	mockCaptureCmdInfo = MockExecuteCommandInfo{}
+	mockCaptureCommandShouldError = false
+	// service1 is in config and running, service2 in config and not running, service3 not in config but running
+	mockCaptureCommandOutput = `NAME                IMAGE                             COMMAND                  SERVICE             CREATED             STATUS              PORTS
+myproject-service1-1   nginx                             "nginx -g 'daemon of…"   service1            2 hours ago         Up 2 hours          0.0.0.0:80->80/tcp
+myproject-service3-1   someotherimage                    "command"                service3            3 hours ago         Up 3 hours
+`
+	oldStdout := os.Stdout
+	r, w, _ := os.Pipe()
+	os.Stdout = w
+
+	testRootCmd, err := InitializeTestCmd()
+	if err != nil {
+		t.Fatalf("Failed to initialize test command: %v", err)
+	}
+	_, err = executeCommandCobra(testRootCmd, "ps") // This will trigger initConfig via OnInitialize
+	if err != nil {
+		t.Fatalf("ps command execution failed: %v", err)
+	}
+
+
+	w.Close()
+	os.Stdout = oldStdout
+	var buf bytes.Buffer
+	buf.ReadFrom(r)
+	output := buf.String()
+
+	// Check that viper was loaded correctly by initConfig
+	if !viper.IsSet("services.service1") {
+		t.Fatal("Viper config not loaded correctly for services.service1 in test")
+	}
+	if !viper.IsSet("services.service2") {
+		t.Fatal("Viper config not loaded correctly for services.service2 in test")
+	}
+
+
+	if !strings.Contains(output, "--- Combined Service Status ---") {
+		t.Errorf("Expected output to contain '--- Combined Service Status ---', got:\n%s", output)
+	}
+	if !strings.Contains(output, "service1         Running") {
+		t.Errorf("Expected output to show service1 as Running, got:\n%s", output)
+	}
+	if !strings.Contains(output, "myproject-service1-1") {
+		t.Errorf("Expected output to contain ps details for service1 (e.g., NAME), got:\n%s", output)
+	}
+	if !strings.Contains(output, "service2         Not Running") {
+		t.Errorf("Expected output to show service2 as Not Running, got:\n%s", output)
+	}
+
+	lines := strings.Split(output, "\n")
+	configServiceColumnHeader := "CONFIG SERVICE"
+	headerIndex := -1
+	for i, line := range lines {
+		if strings.HasPrefix(line, configServiceColumnHeader) {
+			headerIndex = i
+			break
+		}
+	}
+	if headerIndex == -1 {
+		if strings.Contains(output, "Error creating temporary compose file") {
+			t.Fatalf("TestRunDockerComposePs failed because createTempComposeFile errored. Output:\n%s", output)
+		}
+		t.Fatalf("Could not find the table header '%s' in output:\n%s", configServiceColumnHeader, output)
+	}
+
+	for i := headerIndex + 1; i < len(lines); i++ {
+		trimmedLine := strings.TrimSpace(lines[i])
+		if trimmedLine == "" { continue }
+		if strings.HasPrefix(trimmedLine, "service3") {
+			t.Errorf("Service 'service3' (not in config) should not be listed as a primary config service. Found line: %s", lines[i])
+			break
+		}
+	}
+
+	if mockCaptureCmdInfo.Calls == 0 {
+		t.Error("CaptureCommand was not called for 'ps'")
+	} else {
+		if len(mockCaptureCmdInfo.Args) < 4 {
+			t.Fatalf("CaptureCommand called with too few arguments: %v", mockCaptureCmdInfo.Args)
+		}
+		expectedArgsPrefix := []string{"compose", "-f"}
+		if !(mockCaptureCmdInfo.Command == "docker" &&
+			equalSlices(mockCaptureCmdInfo.Args[:2], expectedArgsPrefix) &&
+			mockCaptureCmdInfo.Args[3] == "ps" &&
+			len(mockCaptureCmdInfo.Args) == 4) {
+			t.Errorf("Expected 'docker compose -f <file> ps', got command '%s' with args %v", mockCaptureCmdInfo.Command, mockCaptureCmdInfo.Args)
+		}
 	}
 }

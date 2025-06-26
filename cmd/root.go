@@ -133,14 +133,14 @@ func init() {
 		upCmd,           // Renamed from startCmd
 		downCmd,         // New
 		logsCmd,         // New
-		psCmd,           // Existing
-		listServicesCmd, // New
+		psCmd,           // Updated
 		installCmd,      // New or updated
 		importDBCmd,     // New or updated
 		configCmd,       // Existing
 		doctorCmd,       // Existing
 		validateCmd,     // Existing
 		versionCmd,      // Existing
+		volumesCmd,      // New
 	)
 }
 
@@ -467,29 +467,19 @@ var logsCmd = &cobra.Command{
 
 // psCmd represents the ps command
 var psCmd = &cobra.Command{
-	Use:   "ps [options]",
-	Short: "List running services",
-	Long:  `List running services managed by Docker Compose. Accepts docker compose ps flags.`,
-	Args:  cobra.ArbitraryArgs,
+	Use:   "ps [service...]",
+	Short: "List running services and all available services from config",
+	Long:  `Displays a list of all services defined in the upctl.yaml configuration file, along with their current running status (similar to 'docker compose ps'). If one or more service names are provided as arguments, the output will be filtered to show only those services.`,
+	Args:  cobra.ArbitraryArgs, // Allows for optional service names
 	Run: func(ccmd *cobra.Command, args []string) {
 		if progress == nil {
 			progress = spinner.New(spinner.CharSets[14], 100*time.Millisecond, spinner.WithWriter(os.Stderr))
 		}
-		RunDockerComposePs(ccmd, args)
+		RunDockerComposePs(ccmd, args) // args will be passed to RunDockerComposePs for potential filtering
 	},
 }
 
-var listServicesCmd = &cobra.Command{
-	Use:   "list",
-	Short: "List available Docker Compose services defined in upctl.yaml",
-	Long:  `Parses the upctl.yaml file and lists all services defined under the 'services' key.`,
-	Run: func(ccmd *cobra.Command, args []string) {
-		if progress == nil {
-			progress = spinner.New(spinner.CharSets[14], 100*time.Millisecond, spinner.WithWriter(os.Stderr))
-		}
-		RunDockerComposeListServices(ccmd, args)
-	},
-}
+// listServicesCmd is now removed as its functionality is merged into psCmd
 
 // installCmd and importDBCmd are defined above, near rootCmd.AddCommand
 
