@@ -18,7 +18,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout upctl repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up Go
         uses: actions/setup-go@v6
@@ -87,7 +87,7 @@ jobs:
           echo "linux_arm64=$LINUX_ARM64" >> $GITHUB_OUTPUT
 
       - name: Checkout homebrew-upctl repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           repository: uptime-labs/homebrew-upctl
           token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
